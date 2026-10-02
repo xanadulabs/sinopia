@@ -14,6 +14,7 @@ from pathlib import Path
 from sinopia.composite import composite
 from sinopia.image import Image
 from sinopia.png import read_mask, read_png, write_mask, write_png
+from sinopia.style import shadow_image
 
 
 class Layer:
@@ -26,6 +27,7 @@ class Layer:
         blend: str = "normal",
         x: int = 0,
         y: int = 0,
+        shadow: tuple[int, int] | None = None,
     ):
         self.name = name
         self.image = image
@@ -34,6 +36,7 @@ class Layer:
         self.blend = blend
         self.x = x
         self.y = y
+        self.shadow = shadow
 
 
 class Document:
@@ -55,6 +58,16 @@ def flatten(document: Document) -> Image:
             raise ValueError(f"layer {layer.name} is the wrong size")
         if layer.mask is not None and len(layer.mask) != document.width * document.height:
             raise ValueError(f"layer {layer.name} mask is the wrong size")
+        if layer.shadow is not None:
+            shift_x, shift_y = layer.shadow
+            acc = composite(
+                acc,
+                shadow_image(layer),
+                None,
+                255,
+                layer.x + shift_x,
+                layer.y + shift_y,
+            )
         acc = composite(acc, layer.image, layer.mask, layer.opacity, layer.x, layer.y)
     return acc
 
@@ -98,7 +111,10 @@ def save(document: Document, folder: Path | str) -> None:
             raise ValueError(f"unsupported blend {layer.blend}")
         if not 0 <= layer.opacity <= 255:
             raise ValueError("opacity must be 0-255")
-        lines.append(f"layer {image_name} {layer.blend} {layer.opacity} {mask_name} {layer.x} {layer.y}")
+        line = f"layer {image_name} {layer.blend} {layer.opacity} {mask_name} {layer.x} {layer.y}"
+        if layer.shadow is not None:
+            line += f" shadow {layer.shadow[0]} {layer.shadow[1]}"
+        lines.append(line)
     (folder / "stack.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
@@ -119,13 +135,18 @@ def load(folder: Path | str) -> Document:
             width = int(parts[1])
             height = int(parts[2])
             continue
-        if parts[0] != "layer" or len(parts) not in (5, 7):
+        if parts[0] != "layer" or len(parts) not in (5, 7, 10):
             raise ValueError(f"bad stack line: {line}")
         if width is None or height is None:
             raise ValueError("size line must come first")
         image_name, blend, opacity_text, mask_name = parts[1:5]
-        origin_x = int(parts[5]) if len(parts) == 7 else 0
-        origin_y = int(parts[6]) if len(parts) == 7 else 0
+        origin_x = int(parts[5]) if len(parts) >= 7 else 0
+        origin_y = int(parts[6]) if len(parts) >= 7 else 0
+        shadow = None
+        if len(parts) == 10:
+            if parts[7] != "shadow":
+                raise ValueError(f"bad stack line: {line}")
+            shadow = (int(parts[8]), int(parts[9]))
         name = _layer_name(image_name)
         if name in seen:
             raise ValueError(f"duplicate layer name {name}")
@@ -145,7 +166,7 @@ def load(folder: Path | str) -> Document:
             mask_width, mask_height, mask = read_mask(folder / mask_name)
             if mask_width != width or mask_height != height:
                 raise ValueError(f"{mask_name} is the wrong size")
-        layers.append(Layer(name, image, mask, opacity, blend, origin_x, origin_y))
+        layers.append(Layer(name, image, mask, opacity, blend, origin_x, origin_y, shadow))
     if width is None or height is None:
         raise ValueError("stack.txt has no size")
     return Document(width, height, layers)

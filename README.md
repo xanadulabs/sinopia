@@ -12,7 +12,7 @@ Layers stack from the bottom. Each one has an image, a mask, an opacity, and a b
 2. **Folder document.** Done. `stack.txt` plus one PNG per layer and mask. Loading the folder matches the proof.
 3. **Window.** Done. The window shows the composite. Drag the picture to move the top layer.
 4. **Brush.** Done. Press `b` and drag to paint the top layer. Press `v` to drag that layer again. The mask is not painted.
-5. **Type and layer styles.** Type is on the canvas: press `t`, click, type, and press Enter to keep the letters. Layer styles are still ahead.
+5. **Type and layer styles.** Type is on the canvas: press `t`, click, type, and press Enter to keep the letters. The first layer style is a drop shadow, stored on the layer as `shadow dx dy`.
 6. **Healing brush.**
 7. **PSD, PNG, and JPEG export.** The folder stays the file we keep.
 8. **Smart objects.** A nested folder plus a transform.
