@@ -3,6 +3,7 @@
 from sinopia.brush import BLACK, line, stamp
 from sinopia.document import Document, flatten
 from sinopia.image import Image
+from sinopia.lettering import Lettering
 
 
 class Stage:
@@ -16,6 +17,7 @@ class Stage:
         self.radius = 2
         self._press: tuple[int, int, int, int] | None = None
         self._stroke: tuple[int, int] | None = None
+        self.lettering = Lettering(self)
 
     @property
     def layer(self):

@@ -30,19 +30,37 @@ class Window:
         self._paint()
 
     def set_tool(self, tool: str) -> None:
-        if tool not in ("move", "brush"):
+        if tool not in ("move", "brush", "type"):
             raise ValueError(f"unknown tool {tool}")
         self.tool = tool
         self._title()
 
     def _title(self) -> None:
-        self.root.title(f"Sinopia — {self.tool}")
+        if self.stage.lettering.active:
+            self.root.title(f"Sinopia — type: {self.stage.lettering.text}")
+        else:
+            self.root.title(f"Sinopia — {self.tool}")
 
     def _key(self, event) -> None:
+        if self.stage.lettering.active:
+            key = getattr(event, "keysym", "")
+            if key == "Return":
+                self.stage.lettering.commit()
+            elif key == "Escape":
+                self.stage.lettering.cancel()
+            elif key == "BackSpace":
+                self.stage.lettering.backspace()
+            elif event.char:
+                self.stage.lettering.insert(event.char)
+            self._title()
+            self._paint()
+            return
         if event.char in ("b", "B"):
             self.set_tool("brush")
         elif event.char in ("v", "V"):
             self.set_tool("move")
+        elif event.char in ("t", "T"):
+            self.set_tool("type")
 
     def _doc(self, event) -> tuple[int, int]:
         return event.x // SCALE, event.y // SCALE
@@ -51,6 +69,12 @@ class Window:
         x, y = self._doc(event)
         if self.tool == "brush":
             self.stage.brush_press(x, y)
+            self._paint()
+        elif self.tool == "type":
+            if self.stage.lettering.active:
+                self.stage.lettering.commit()
+            self.stage.lettering.begin(x, y)
+            self._title()
             self._paint()
         else:
             self.stage.press(x, y)

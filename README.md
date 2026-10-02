@@ -12,7 +12,7 @@ Layers stack from the bottom. Each one has an image, a mask, an opacity, and a b
 2. **Folder document.** Done. `stack.txt` plus one PNG per layer and mask. Loading the folder matches the proof.
 3. **Window.** Done. The window shows the composite. Drag the picture to move the top layer.
 4. **Brush.** Done. Press `b` and drag to paint the top layer. Press `v` to drag that layer again. The mask is not painted.
-5. **Type and layer styles.** Type edited on the canvas, and layer styles.
+5. **Type and layer styles.** Type is on the canvas: press `t`, click, type, and press Enter to keep the letters. Layer styles are still ahead.
 6. **Healing brush.**
 7. **PSD, PNG, and JPEG export.** The folder stays the file we keep.
 8. **Smart objects.** A nested folder plus a transform.
@@ -27,7 +27,7 @@ That writes `out/proof.png`, a red field with a soft green circle over it, and `
 python3 -m sinopia.window
 ```
 
-That opens the same picture. Drag moves the green layer. Press `b` to paint it, and `v` to move it again. Letting go writes the folder.
+That opens the same picture. Drag moves the green layer. Press `b` to paint it, and `v` to move it again. Press `t`, click, and type; Enter keeps the letters and Escape drops them. Letting go of a drag or a stroke writes the folder.
 
 ```
 python3 -m unittest discover -s tests
