@@ -1,34 +1,15 @@
-"""Write out/proof.png: a red field with a soft green circle masked over it."""
+"""Write the proof picture and the folder it came from."""
 
 from pathlib import Path
 
-from sinopia.composite import composite
-from sinopia.image import Image
+from sinopia.document import flatten, save
 from sinopia.png import write_png
-
-SIZE = 96
-
-
-def _disk_mask() -> bytearray:
-    mask = bytearray(SIZE * SIZE)
-    center = (SIZE - 1) / 2
-    radius = SIZE * 0.35
-    for y in range(SIZE):
-        for x in range(SIZE):
-            distance = ((x - center) ** 2 + (y - center) ** 2) ** 0.5
-            falloff = 1 - (distance - radius * 0.55) / (radius * 0.45)
-            mask[y * SIZE + x] = int(max(0, min(255, round(falloff * 255))))
-    return mask
-
-
-def proof() -> Image:
-    red = Image(SIZE, SIZE, (180, 24, 24, 255))
-    green = Image(SIZE, SIZE, (32, 140, 64, 255))
-    return composite(red, green, _disk_mask())
+from sinopia.proof import SIZE, proof_document
 
 
 def main() -> None:
-    image = proof()
+    document = proof_document()
+    image = flatten(document)
     # Corner of the mask is 0, so the red layer shows through unchanged.
     if image.get(0, 0) != (180, 24, 24, 255):
         raise SystemExit(f"corner pixel was {image.get(0, 0)}")
@@ -39,9 +20,12 @@ def main() -> None:
 
     out = Path("out")
     out.mkdir(exist_ok=True)
-    destination = out / "proof.png"
-    write_png(destination, image)
-    print(destination)
+    picture = out / "proof.png"
+    folder = out / "document"
+    write_png(picture, image)
+    save(document, folder)
+    print(picture)
+    print(folder / "stack.txt")
 
 
 if __name__ == "__main__":

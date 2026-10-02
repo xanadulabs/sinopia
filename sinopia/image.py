@@ -10,6 +10,14 @@ class Image:
         pixel = bytes(int(c) & 255 for c in fill)
         self.pixels = bytearray(pixel * (width * height))
 
+    @classmethod
+    def from_pixels(cls, width: int, height: int, pixels: bytes | bytearray) -> "Image":
+        image = cls(width, height)
+        if len(pixels) != len(image.pixels):
+            raise ValueError("pixel buffer has the wrong size")
+        image.pixels[:] = pixels
+        return image
+
     def __len__(self) -> int:
         return self.width * self.height
 
