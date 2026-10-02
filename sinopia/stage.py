@@ -1,5 +1,6 @@
-"""The picture on screen. Dragging moves one layer; the pixels stay the flattened document."""
+"""The picture on screen. Dragging moves one layer; the brush paints that layer."""
 
+from sinopia.brush import BLACK, line, stamp
 from sinopia.document import Document, flatten
 from sinopia.image import Image
 
@@ -11,7 +12,10 @@ class Stage:
         self.document = document
         self.layer_index = layer_index
         self.picture = flatten(document)
+        self.color = BLACK
+        self.radius = 2
         self._press: tuple[int, int, int, int] | None = None
+        self._stroke: tuple[int, int] | None = None
 
     @property
     def layer(self):
@@ -31,6 +35,32 @@ class Stage:
     def release(self, x: int, y: int) -> None:
         self.drag(x, y)
         self._press = None
+
+    def brush_press(self, x: int, y: int) -> None:
+        self._stroke = None
+        self._brush_to(x, y)
+
+    def brush_drag(self, x: int, y: int) -> None:
+        if self._stroke is None:
+            return
+        self._brush_to(x, y)
+
+    def brush_release(self, x: int, y: int) -> None:
+        if self._stroke is None:
+            return
+        self._brush_to(x, y)
+        self._stroke = None
+
+    def _brush_to(self, x: int, y: int) -> None:
+        if self._stroke is None:
+            points = [(x, y)]
+        else:
+            points = line(self._stroke, (x, y))[1:]
+        image = self.layer.image
+        for px, py in points:
+            stamp(image, px - self.layer.x, py - self.layer.y, self.color, self.radius)
+        self._stroke = (x, y)
+        self.picture = flatten(self.document)
 
 
 def scaled_rgb(image: Image, scale: int) -> list[str]:

@@ -17,28 +17,58 @@ class Window:
         self.stage = stage
         self.on_release = on_release
         picture = stage.picture
+        self.tool = "move"
         self.root = tkinter.Tk()
-        self.root.title("Sinopia")
         self.photo = tkinter.PhotoImage(width=picture.width * SCALE, height=picture.height * SCALE)
         label = tkinter.Label(self.root, image=self.photo, borderwidth=0)
         label.pack()
         label.bind("<ButtonPress-1>", self._press)
         label.bind("<B1-Motion>", self._drag)
         label.bind("<ButtonRelease-1>", self._release)
+        self.root.bind("<KeyPress>", self._key)
+        self._title()
         self._paint()
+
+    def set_tool(self, tool: str) -> None:
+        if tool not in ("move", "brush"):
+            raise ValueError(f"unknown tool {tool}")
+        self.tool = tool
+        self._title()
+
+    def _title(self) -> None:
+        self.root.title(f"Sinopia — {self.tool}")
+
+    def _key(self, event) -> None:
+        if event.char in ("b", "B"):
+            self.set_tool("brush")
+        elif event.char in ("v", "V"):
+            self.set_tool("move")
 
     def _doc(self, event) -> tuple[int, int]:
         return event.x // SCALE, event.y // SCALE
 
     def _press(self, event) -> None:
-        self.stage.press(*self._doc(event))
+        x, y = self._doc(event)
+        if self.tool == "brush":
+            self.stage.brush_press(x, y)
+            self._paint()
+        else:
+            self.stage.press(x, y)
 
     def _drag(self, event) -> None:
-        self.stage.drag(*self._doc(event))
+        x, y = self._doc(event)
+        if self.tool == "brush":
+            self.stage.brush_drag(x, y)
+        else:
+            self.stage.drag(x, y)
         self._paint()
 
     def _release(self, event) -> None:
-        self.stage.release(*self._doc(event))
+        x, y = self._doc(event)
+        if self.tool == "brush":
+            self.stage.brush_release(x, y)
+        else:
+            self.stage.release(x, y)
         self._paint()
         if self.on_release is not None:
             self.on_release()
