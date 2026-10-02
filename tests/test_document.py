@@ -46,7 +46,9 @@ class RoundTripTest(unittest.TestCase):
             text = (folder / "stack.txt").read_text(encoding="utf-8")
             self.assertEqual(
                 text,
-                "size 96 96\nlayer red.png normal 255 -\nlayer green.png normal 255 green.mask.png\n",
+                "size 96 96\n"
+                "layer red.png normal 255 - 0 0\n"
+                "layer green.png normal 255 green.mask.png 0 0\n",
             )
             self.assertTrue((folder / "red.png").is_file())
             self.assertTrue((folder / "green.mask.png").is_file())

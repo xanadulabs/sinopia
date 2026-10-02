@@ -10,7 +10,7 @@ Layers stack from the bottom. Each one has an image, a mask, an opacity, and a b
 
 1. **Composite.** Done. A headless Normal blend of layers and masks, written to a PNG.
 2. **Folder document.** Done. `stack.txt` plus one PNG per layer and mask. Loading the folder matches the proof.
-3. **Window.** Show the composite, and drag one layer.
+3. **Window.** Done. The window shows the composite. Drag the picture to move the top layer.
 4. **Brush.** Paint on a layer once the picture on screen matches the PNG.
 5. **Type and layer styles.** Type edited on the canvas, and layer styles.
 6. **Healing brush.**
@@ -22,6 +22,12 @@ python3 -m sinopia
 ```
 
 That writes `out/proof.png`, a red field with a soft green circle over it, and `out/document/`.
+
+```
+python3 -m sinopia.window
+```
+
+That opens the same picture. Drag it to move the green layer. The position is written back into `out/document/stack.txt`.
 
 ```
 python3 -m unittest discover -s tests
