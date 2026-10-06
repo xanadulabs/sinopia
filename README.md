@@ -27,7 +27,7 @@ That writes `out/proof.png`, a red field with a soft green circle over it, and `
 python3 -m sinopia.window
 ```
 
-That opens the same picture. Drag moves the green layer. Press `b` to paint it, and `v` to move it again. Press `t`, click, and type; Enter keeps the letters and Escape drops them. Letting go of a drag or a stroke writes the folder.
+That opens the same picture, with move, brush, and type in a column on the left. Drag moves the green layer. Press `b` to paint it, and `v` to move it again. Press `t`, click, and type; Enter keeps the letters and Escape drops them. Letting go of a drag or a stroke writes the folder.
 
 ```
 python3 -m unittest discover -s tests

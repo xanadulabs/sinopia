@@ -30,19 +30,37 @@ def composite(
     op = out.pixels
     width = bottom.width
     height = bottom.height
+    opaque = opacity == 255
     for y in range(height):
         sy = y - dy
+        row_inside = 0 <= sy < height
+        mask_row = None if mask is None or not row_inside else sy * width
         for x in range(width):
-            sx = x - dx
             i = (y * width + x) * 4
-            if 0 <= sx < width and 0 <= sy < height:
-                s = (sy * width + sx) * 4
-                src = (tp[s], tp[s + 1], tp[s + 2], tp[s + 3])
-                mask_value = 255 if mask is None else mask[sy * width + sx]
+            if row_inside:
+                sx = x - dx
+                if 0 <= sx < width:
+                    s = (sy * width + sx) * 4
+                    src_a = tp[s + 3]
+                    mask_value = 255 if mask_row is None else mask[mask_row + sx]
+                    if opaque and src_a == 255 and mask_value == 255:
+                        op[i] = tp[s]
+                        op[i + 1] = tp[s + 1]
+                        op[i + 2] = tp[s + 2]
+                        op[i + 3] = 255
+                        continue
+                else:
+                    s = 0
+                    src_a = 0
+                    mask_value = 0
             else:
-                src = (0, 0, 0, 0)
+                s = 0
+                src_a = 0
                 mask_value = 0
-            cover = _covered(src[3], mask_value, opacity)
+            cover = _covered(src_a, mask_value, opacity)
+            if cover == 0:
+                op[i : i + 4] = bp[i : i + 4]
+                continue
             keep = 255 - cover
             dst_a = bp[i + 3]
             out_a = cover + (dst_a * keep + 127) // 255
@@ -50,6 +68,6 @@ def composite(
             if out_a == 0:
                 continue
             for c in range(3):
-                mixed = src[c] * cover + (bp[i + c] * dst_a * keep + 127) // 255
+                mixed = tp[s + c] * cover + (bp[i + c] * dst_a * keep + 127) // 255
                 op[i + c] = (mixed + out_a // 2) // out_a
     return out

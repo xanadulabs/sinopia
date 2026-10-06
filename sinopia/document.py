@@ -48,27 +48,32 @@ class Document:
         self.layers = [] if layers is None else layers
 
 
+def paint_layer(under: Image, layer: Layer) -> Image:
+    """Composite one layer, and its shadow, over an image that is left unchanged."""
+    if layer.blend != "normal":
+        raise ValueError(f"unsupported blend {layer.blend}")
+    if layer.image.width != under.width or layer.image.height != under.height:
+        raise ValueError(f"layer {layer.name} is the wrong size")
+    if layer.mask is not None and len(layer.mask) != under.width * under.height:
+        raise ValueError(f"layer {layer.name} mask is the wrong size")
+    if layer.shadow is not None:
+        shift_x, shift_y = layer.shadow
+        under = composite(under, shadow_image(layer), None, 255, layer.x + shift_x, layer.y + shift_y)
+    return composite(under, layer.image, layer.mask, layer.opacity, layer.x, layer.y)
+
+
 def flatten(document: Document) -> Image:
     """Composite every layer, bottom to top, over a transparent canvas."""
+    return flatten_below(document, len(document.layers))
+
+
+def flatten_below(document: Document, index: int) -> Image:
+    """Composite the layers under `index`. The picture those layers make does not include that layer."""
+    if index < 0:
+        index += len(document.layers)
     acc = Image(document.width, document.height)
-    for layer in document.layers:
-        if layer.blend != "normal":
-            raise ValueError(f"unsupported blend {layer.blend}")
-        if layer.image.width != document.width or layer.image.height != document.height:
-            raise ValueError(f"layer {layer.name} is the wrong size")
-        if layer.mask is not None and len(layer.mask) != document.width * document.height:
-            raise ValueError(f"layer {layer.name} mask is the wrong size")
-        if layer.shadow is not None:
-            shift_x, shift_y = layer.shadow
-            acc = composite(
-                acc,
-                shadow_image(layer),
-                None,
-                255,
-                layer.x + shift_x,
-                layer.y + shift_y,
-            )
-        acc = composite(acc, layer.image, layer.mask, layer.opacity, layer.x, layer.y)
+    for layer in document.layers[:index]:
+        acc = paint_layer(acc, layer)
     return acc
 
 

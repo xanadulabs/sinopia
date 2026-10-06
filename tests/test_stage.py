@@ -77,9 +77,14 @@ class WindowPixelsTest(unittest.TestCase):
         mid = SIZE // 2 * SCALE
         corner = _rgb(window.photo.get(0, 0))
         center = _rgb(window.photo.get(mid, mid))
-        window.root.destroy()
         self.assertEqual(corner, RED[:3])
         self.assertEqual(center, GREEN[:3])
+        self.assertEqual(window.buttons["move"]["relief"], "sunken")
+        window.buttons["brush"].invoke()
+        self.assertEqual(window.tool, "brush")
+        self.assertEqual(window.buttons["brush"]["relief"], "sunken")
+        self.assertEqual(window.buttons["move"]["relief"], "raised")
+        window.root.destroy()
 
 
 def _rgb(value) -> tuple[int, int, int]:
