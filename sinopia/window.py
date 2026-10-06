@@ -6,6 +6,7 @@ Tk draws the pixels. The folder on disk stays the document.
 import tkinter
 from pathlib import Path
 
+from sinopia.png import write_png
 from sinopia.document import (
     Document,
     Group,
@@ -36,6 +37,7 @@ class Window:
         self.on_release = on_release
         picture = stage.picture
         self.tool = "move"
+        self.scale = SCALE
         self._pointer: tuple[int, int] | None = None
         self._paint_after: str | None = None
         self.root = tkinter.Tk()
@@ -58,6 +60,14 @@ class Window:
             )
             button.pack(pady=2)
             self.buttons[name] = button
+        zoom = tkinter.Frame(rail, bg=RAIL)
+        zoom.pack(pady=(12, 0))
+        self.zoom_out = tkinter.Button(zoom, text="−", width=2, command=lambda: self.set_scale(self.scale // 2))
+        self.zoom_in = tkinter.Button(zoom, text="+", width=2, command=lambda: self.set_scale(self.scale * 2))
+        self.zoom_out.pack(side="left")
+        self.zoom_in.pack(side="left", padx=(2, 0))
+        self.zoom_label = tkinter.Label(rail, text="", bg=RAIL)
+        self.zoom_label.pack()
         self._source = tkinter.PhotoImage(width=picture.width, height=picture.height)
         self.photo = tkinter.PhotoImage(width=picture.width * SCALE, height=picture.height * SCALE)
         self.label = tkinter.Label(body, image=self.photo, borderwidth=0, bg=RAIL)
@@ -87,12 +97,16 @@ class Window:
         self.delete_button = tkinter.Button(commands, text="Delete", command=self._delete_layer)
         for button in (self.add_button, self.group_button, self.delete_button):
             button.pack(side="left", padx=1)
+        self.save_button = tkinter.Button(panel, text="Save", command=self._save)
+        self.save_button.pack(fill="x", padx=4, pady=(0, 4))
         self._rows: list = []
         self.label.bind("<ButtonPress-1>", self._press)
         self.label.bind("<B1-Motion>", self._drag)
         self.label.bind("<ButtonRelease-1>", self._release)
         self.root.bind("<KeyPress>", self._key)
+        self.root.bind("<Control-s>", self._save)
         self._mark_tools()
+        self._show_zoom()
         self._title()
         self._refresh_layers()
         self._paint()
@@ -185,6 +199,24 @@ class Window:
         if self.on_release is not None:
             self.on_release()
 
+    def _save(self, _event=None):
+        self._keep()
+        return "break"
+
+    def set_scale(self, scale: int) -> None:
+        scale = max(1, min(32, int(scale)))
+        if scale == self.scale:
+            return
+        self.scale = scale
+        picture = self.stage.picture
+        self.photo = tkinter.PhotoImage(width=picture.width * scale, height=picture.height * scale)
+        self.label.configure(image=self.photo)
+        self._paint()
+        self._show_zoom()
+
+    def _show_zoom(self) -> None:
+        self.zoom_label.configure(text=f"{self.scale}×")
+
     def set_tool(self, tool: str) -> None:
         if tool not in ("move", "brush", "type"):
             raise ValueError(f"unknown tool {tool}")
@@ -225,9 +257,13 @@ class Window:
             self.set_tool("move")
         elif event.char in ("t", "T"):
             self.set_tool("type")
+        elif getattr(event, "keysym", "") in ("plus", "equal", "KP_Add"):
+            self.set_scale(self.scale * 2)
+        elif getattr(event, "keysym", "") in ("minus", "KP_Subtract"):
+            self.set_scale(self.scale // 2)
 
     def _doc(self, event) -> tuple[int, int]:
-        return event.x // SCALE, event.y // SCALE
+        return event.x // self.scale, event.y // self.scale
 
     def _press(self, event) -> None:
         x, y = self._doc(event)
@@ -282,7 +318,7 @@ class Window:
     def _paint(self) -> None:
         FRAME.write_bytes(ppm_bytes(self.stage.picture))
         self._source.read(FRAME)
-        self.photo.tk.call(self.photo, "copy", self._source, "-zoom", SCALE, SCALE)
+        self.photo.tk.call(self.photo, "copy", self._source, "-zoom", self.scale, self.scale)
 
     def mainloop(self) -> None:
         self.root.mainloop()
@@ -300,8 +336,9 @@ def main() -> None:
         save(document, folder)
     stage = Stage(document)
 
-    def keep(document: Document = document, folder=folder) -> None:
+    def keep(document: Document = document, folder=folder, stage: Stage = stage) -> None:
         save(document, folder)
+        write_png(folder.parent / "proof.png", stage.picture)
 
     Window(stage, on_release=keep).mainloop()
 

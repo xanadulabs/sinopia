@@ -4,7 +4,7 @@ A lightweight, minimalist compositor. The aim is an early Photoshop: layers, mas
 
 The picture you keep is a folder of PNGs plus `stack.txt`. PSD, PNG, and JPEG are exports. If the program stops, the pictures are still files you can open.
 
-Layers stack from the bottom. Each one has an image, a mask, an opacity, and a blend mode. Normal comes first. The window will show the same pixels the compositor writes. After that come a brush, type edited on the canvas, layer styles, and the healing brush. A PSD we write should open in Photoshop 7 and in current Photoshop. Smart objects wait until a normal layer already works.
+What it does now: stack layers and groups, mask them, paint, type, drop a shadow, zoom the view, and save. The window shows the same pixels the compositor writes. Still ahead: the healing brush, PSD export, and smart objects.
 
 ## Milestones
 
@@ -27,7 +27,7 @@ That writes `out/proof.png`, a red field with a soft green circle over it, and `
 python3 -m sinopia.window
 ```
 
-That opens the same picture. Move, brush, and type are in a column on the left. Layers are listed on the right, top of the picture first. Drag a name to restack it. Drop it on the upper half of another row to put it above that layer, the lower half to put it under, or the middle of a group to put it inside. New, Group, and Delete sit under the list. Drag on the picture moves the selected layer. Press `b` to paint it, and `v` to move it again. Press `t`, click, and type; Enter keeps the letters and Escape drops them. Letting go of a drag or a stroke writes the folder.
+That opens the same picture. Move, brush, and type are in a column on the left. Layers are listed on the right, top of the picture first. Drag a name to restack it. Drop it on the upper half of another row to put it above that layer, the lower half to put it under, or the middle of a group to put it inside. New, Group, and Delete sit under the list. Drag on the picture moves the selected layer. Press `b` to paint it, and `v` to move it again. Press `t`, click, and type; Enter keeps the letters and Escape drops them. `+` and `−` zoom the view. Save writes the folder and `out/proof.png`. Letting go of a drag or a stroke saves too.
 
 ```
 python3 -m unittest discover -s tests
