@@ -18,14 +18,16 @@ class ViewTest(unittest.TestCase):
         try:
             window.root.update()
             self.assertEqual(window.photo.width(), SIZE * window.scale)
-            window.zoom_in.invoke()
+            window.set_tool("zoom")
+            window._release(_Point(1, 1))
             self.assertEqual(window.scale, 16)
             self.assertEqual(window.photo.width(), SIZE * 16)
             window.set_scale(2)
+            window.set_tool("move")
             window._press(_Point(3 * 2, 0))
             window._release(_Point(6 * 2, 0))
             self.assertEqual(stage.layer.x, 3)
-            self.assertEqual(window.zoom_label["text"], "2×")
+            self.assertEqual(window._zoom_readout["text"], "2×")
         finally:
             window.root.destroy()
 
@@ -35,7 +37,7 @@ class ViewTest(unittest.TestCase):
         calls = []
         window = Window(Stage(proof_document()), on_release=lambda: calls.append("saved"))
         try:
-            window.save_button.invoke()
+            window.file_menu.invoke(1)
             window.root.focus_force()
             window.root.update()
             window.root.event_generate("<Control-Key-s>")

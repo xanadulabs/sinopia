@@ -106,6 +106,17 @@ class LayerMenuTest(unittest.TestCase):
 
 
 @unittest.skipUnless(os.environ.get("DISPLAY"), "no display")
+class PickTest(unittest.TestCase):
+    def test_a_click_hits_the_top_layer_that_covers_the_point(self):
+        document = proof_document()
+        stage = Stage(document)
+        red, green = document.layers
+        self.assertIs(stage.pick(SIZE // 2, SIZE // 2), green)
+        self.assertIs(stage.pick(0, 0), red)
+        green.opacity = 0
+        self.assertIs(stage.pick(SIZE // 2, SIZE // 2), red)
+
+
 class LayerPanelTest(unittest.TestCase):
     def test_the_panel_lists_selects_and_adds(self):
         from sinopia.window import Window
@@ -140,6 +151,24 @@ class LayerPanelTest(unittest.TestCase):
             window._layer_drop(_At(green_box[1] + 1))
             self.assertEqual(window.layer_list.get(0), "red")
             self.assertEqual(document.layers[-1].name, "red")
+        finally:
+            window.root.destroy()
+
+    def test_clicking_the_picture_selects_and_highlights_that_layer(self):
+        from sinopia.window import Window
+
+        document = proof_document()
+        window = Window(Stage(document))
+        try:
+            window.root.update()
+            window._press(_Click(4, 4))
+            self.assertEqual(window.stage.target.name, "red")
+            self.assertEqual(window.layer_list.curselection(), (1,))
+            self.assertEqual(window.layer_list.cget("selectbackground"), "#3d6f99")
+            spot = (SIZE // 2) * 8
+            window._press(_Click(spot, spot))
+            self.assertEqual(window.stage.target.name, "green")
+            self.assertEqual(window.layer_list.curselection(), (0,))
         finally:
             window.root.destroy()
 
@@ -200,4 +229,10 @@ class LayerPanelTest(unittest.TestCase):
 
 class _At:
     def __init__(self, y: int):
+        self.y = y
+
+
+class _Click:
+    def __init__(self, x: int, y: int):
+        self.x = x
         self.y = y

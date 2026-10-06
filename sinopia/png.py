@@ -105,12 +105,9 @@ def _read(path: Path | str) -> tuple[int, int, int, bytes]:
             width, height, depth, color_type, compression, filter_method, interlace = struct.unpack(">IIBBBBB", chunk)
             if depth != 8 or compression != 0 or filter_method != 0 or interlace != 0:
                 raise ValueError("unsupported png encoding")
-            if color_type == 6:
-                channels = 4
-            elif color_type == 0:
-                channels = 1
-            else:
-                raise ValueError("png must be grayscale or RGBA")
+            channels = {0: 1, 2: 3, 4: 2, 6: 4}.get(color_type)
+            if channels is None:
+                raise ValueError("png must be grayscale, RGB, or RGBA")
             if width < 1 or height < 1:
                 raise ValueError("png has no pixels")
             header = (width, height, channels)
@@ -129,10 +126,47 @@ def _read(path: Path | str) -> tuple[int, int, int, bytes]:
 
 
 def read_png(path: Path | str) -> Image:
+    fast = _fast(path)
+    if fast is not None:
+        return fast
     width, height, channels, pixels = _read(path)
     if channels != 4:
         raise ValueError("expected an RGBA png")
     return Image.from_pixels(width, height, pixels)
+
+
+def read_rgba(path: Path | str) -> Image:
+    """Open a PNG as straight-alpha RGBA. RGB and grayscale gain a solid alpha."""
+    fast = _fast(path)
+    if fast is not None:
+        return fast
+    width, height, channels, pixels = _read(path)
+    if channels == 4:
+        return Image.from_pixels(width, height, pixels)
+    out = bytearray(width * height * 4)
+    if channels == 3:
+        for index in range(width * height):
+            start = index * 3
+            dest = index * 4
+            out[dest : dest + 3] = pixels[start : start + 3]
+            out[dest + 3] = 255
+    elif channels == 2:
+        for index in range(width * height):
+            gray = pixels[index * 2]
+            alpha = pixels[index * 2 + 1]
+            dest = index * 4
+            out[dest : dest + 4] = bytes((gray, gray, gray, alpha))
+    else:
+        for index, gray in enumerate(pixels):
+            dest = index * 4
+            out[dest : dest + 4] = bytes((gray, gray, gray, 255))
+    return Image.from_pixels(width, height, out)
+
+
+def _fast(path: Path | str) -> Image | None:
+    from sinopia.pixbuf import try_load
+
+    return try_load(path)
 
 
 def read_mask(path: Path | str) -> tuple[int, int, bytearray]:

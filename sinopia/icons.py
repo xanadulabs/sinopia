@@ -1,4 +1,4 @@
-"""Toolbox pictures. The shapes are ours: a move cross, a brush nib, and an A.
+"""Toolbox pictures. The shapes are ours: a move cross, a brush nib, an A, a scale box, and a glass.
 
 The shortcut letter sits in the corner of the button. The canvas cursor is the
 shape alone, so the click lands on the working point.
@@ -9,6 +9,7 @@ from pathlib import Path
 from sinopia.glyphs import GLYPHS
 
 SIZE = 24
+BUTTON_ZOOM = 2
 INK = "#202020"
 
 
@@ -29,7 +30,7 @@ def tool_image(root, name: str, letter: str):
         for x, bit in enumerate(row):
             if bit == "1":
                 image.put(INK, (x, y))
-    return image
+    return image.zoom(BUTTON_ZOOM, BUTTON_ZOOM)
 
 
 def tool_cursor(name: str) -> str:
@@ -81,6 +82,29 @@ def _draw_shape(grid: list[list[str]], name: str) -> tuple[int, int]:
         ):
             _plot(grid, col, row)
         return 8, 2
+    if name == "transform":
+        for i in range(6, 17):
+            _plot(grid, i, 4)
+            _plot(grid, i, 14)
+        for i in range(4, 15):
+            _plot(grid, 6, i)
+            _plot(grid, 16, i)
+        for hx, hy in ((5, 3), (15, 3), (5, 13), (15, 13)):
+            for dy in range(3):
+                for dx in range(3):
+                    _plot(grid, hx + dx, hy + dy)
+        return 6, 4
+    if name == "zoom":
+        cx, cy, radius = 9, 7, 5
+        for y in range(cy - radius, cy + radius + 1):
+            for x in range(cx - radius, cx + radius + 1):
+                distance = (x - cx) ** 2 + (y - cy) ** 2
+                if radius * radius - 6 <= distance <= radius * radius + 1:
+                    _plot(grid, x, y)
+        for step in range(4):
+            _plot(grid, 12 + step, 11 + step)
+            _plot(grid, 13 + step, 11 + step)
+        return cx, cy
     raise ValueError(f"unknown tool {name}")
 
 

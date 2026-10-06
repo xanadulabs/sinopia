@@ -15,6 +15,9 @@ class IconBitsTest(unittest.TestCase):
         self.assertEqual(brush_hot, (5, 15))
         _type, type_hot = tool_bits("type")
         self.assertEqual(type_hot, (8, 2))
+        transform, transform_hot = tool_bits("transform", "F")
+        self.assertEqual(transform[16][18], "1")
+        self.assertEqual(transform_hot, (6, 4))
 
 
 @unittest.skipUnless(os.environ.get("DISPLAY"), "no display")
@@ -27,11 +30,15 @@ class IconWindowTest(unittest.TestCase):
         window = Window(Stage(proof_document()))
         try:
             window.root.update()
-            self.assertEqual(window._tool_images["move"].get(18, 16), (32, 32, 32))
+            self.assertEqual(window._tool_images["move"].width(), 48)
+            self.assertEqual(window._tool_images["move"].get(36, 32), (32, 32, 32))
             self.assertIn("move", str(window.label.cget("cursor")))
             window.set_tool("brush")
             self.assertIn("brush", str(window.label.cget("cursor")))
             window.set_tool("type")
             self.assertIn("type", str(window.label.cget("cursor")))
+            window.set_tool("transform")
+            self.assertIn("transform", str(window.label.cget("cursor")))
+            self.assertIn("corner", window.options.winfo_children()[0].cget("text"))
         finally:
             window.root.destroy()
