@@ -143,6 +143,60 @@ class LayerPanelTest(unittest.TestCase):
         finally:
             window.root.destroy()
 
+    def test_clicking_a_name_renames_a_layer_or_a_group(self):
+        from sinopia.window import Window
+
+        document = proof_document()
+        window = Window(Stage(document))
+        try:
+            window.root.update()
+            green = window.layer_list.bbox(0)
+            window._layer_press(_At(green[1] + green[3] // 2))
+            window._layer_drop(_At(green[1] + green[3] // 2))
+            window._rename_entry.delete(0, "end")
+            window._rename_entry.insert(0, "field")
+            window._commit_rename()
+            self.assertEqual(document.layers[-1].name, "field")
+            self.assertEqual(window.layer_list.get(0), "field")
+            window.group_button.invoke()
+            group = window.layer_list.bbox(0)
+            window._layer_press(_At(group[1] + group[3] // 2))
+            window._layer_drop(_At(group[1] + group[3] // 2))
+            window._rename_entry.delete(0, "end")
+            window._rename_entry.insert(0, "pile")
+            window._commit_rename()
+            self.assertEqual(window.layer_list.get(0), "▸ pile")
+            self.assertEqual(document.layers[-1].name, "pile")
+        finally:
+            window.root.destroy()
+
+    def test_a_group_can_be_dragged_and_a_drop_on_its_name_nests(self):
+        from sinopia.window import Window
+
+        document = proof_document()
+        window = Window(Stage(document))
+        try:
+            window.root.update()
+            window.group_button.invoke()
+            group_box = window.layer_list.bbox(0)
+            red_box = window.layer_list.bbox(2)
+            window._layer_press(_At(group_box[1] + group_box[3] // 2))
+            window._layer_motion(_At(red_box[1] + red_box[3] - 1))
+            window._layer_drop(_At(red_box[1] + red_box[3] - 1))
+            self.assertEqual(window.layer_list.get(0), "red")
+            self.assertEqual(document.layers[-1].name, "red")
+            self.assertEqual(document.layers[0].name, "group")
+            group_box = window.layer_list.bbox(1)
+            red_box = window.layer_list.bbox(0)
+            window._layer_press(_At(red_box[1] + red_box[3] // 2))
+            window._layer_motion(_At(group_box[1] + group_box[3] // 2))
+            window._layer_drop(_At(group_box[1] + group_box[3] // 2))
+            self.assertEqual(window.layer_list.get(0), "▸ group")
+            self.assertEqual(window.layer_list.get(1), "    red")
+            self.assertEqual([child.name for child in document.layers[0].children], ["green", "red"])
+        finally:
+            window.root.destroy()
+
 
 class _At:
     def __init__(self, y: int):

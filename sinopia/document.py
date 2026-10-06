@@ -132,13 +132,24 @@ def save(document: Document, folder: Path | str) -> None:
     folder = Path(folder)
     folder.mkdir(parents=True, exist_ok=True)
     seen: set[str] = set()
+    seen_files: set[str] = set()
     lines = [f"size {document.width} {document.height}"]
     for item in document.layers:
-        _write_item(item, lines, seen, folder, document)
+        _write_item(item, lines, seen, seen_files, folder, document)
     (folder / "stack.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    for path in folder.glob("*.png"):
+        if path.name not in seen_files:
+            path.unlink()
 
 
-def _write_item(item: Layer | Group, lines: list[str], seen: set[str], folder: Path, document: Document) -> None:
+def _write_item(
+    item: Layer | Group,
+    lines: list[str],
+    seen: set[str],
+    seen_files: set[str],
+    folder: Path,
+    document: Document,
+) -> None:
     _check_name(item.name)
     if item.name in seen:
         raise ValueError(f"duplicate layer name {item.name}")
@@ -150,19 +161,21 @@ def _write_item(item: Layer | Group, lines: list[str], seen: set[str], folder: P
             raise ValueError("opacity must be 0-255")
         lines.append(f"group {item.name} {item.blend} {item.opacity} {item.x} {item.y}")
         for child in item.children:
-            _write_item(child, lines, seen, folder, document)
+            _write_item(child, lines, seen, seen_files, folder, document)
         lines.append("endgroup")
         return
     if item.image.width != document.width or item.image.height != document.height:
         raise ValueError(f"layer {item.name} is the wrong size")
     image_name = f"{item.name}.png"
     write_png(folder / image_name, item.image)
+    seen_files.add(image_name)
     mask_name = "-"
     if item.mask is not None:
         if len(item.mask) != document.width * document.height:
             raise ValueError(f"layer {item.name} mask is the wrong size")
         mask_name = f"{item.name}.mask.png"
         write_mask(folder / mask_name, document.width, document.height, item.mask)
+        seen_files.add(mask_name)
     if item.blend != "normal":
         raise ValueError(f"unsupported blend {item.blend}")
     if not 0 <= item.opacity <= 255:
@@ -293,6 +306,21 @@ def _locate(document: Document, node: Layer | Group) -> tuple[list, int]:
     if found is None:
         raise ValueError(f"{node.name} is not in the document")
     return found
+
+
+def rename_item(document: Document, node: Layer | Group, name: str) -> bool:
+    """Rename a layer or group. The name is a filename, so spaces become hyphens."""
+    name = name.strip().replace(" ", "-")
+    if name == node.name:
+        return True
+    try:
+        _check_name(name)
+    except ValueError:
+        return False
+    if any(item is not node and item.name == name for item in walk(document.layers)):
+        return False
+    node.name = name
+    return True
 
 
 def _fresh_name(document: Document, stem: str) -> str:

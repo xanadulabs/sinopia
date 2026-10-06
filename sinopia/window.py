@@ -18,6 +18,7 @@ from sinopia.document import (
     place_above,
     place_below,
     place_into,
+    rename_item,
     save,
 )
 from sinopia.proof import proof_document
@@ -90,6 +91,9 @@ class Window:
         self._layer_src: int | None = None
         self._layer_press_y: int | None = None
         self._layer_dragged = False
+        self._rename_on_click = False
+        self._rename_entry: tkinter.Entry | None = None
+        self._rename_index: int | None = None
         commands = tkinter.Frame(panel, bg=RAIL)
         commands.pack(fill="x", padx=4, pady=(0, 4))
         self.add_button = tkinter.Button(commands, text="New", command=self._add_layer)
@@ -127,6 +131,8 @@ class Window:
         self._layer_src = self.layer_list.nearest(event.y)
         self._layer_press_y = event.y
         self._layer_dragged = False
+        chosen = self.layer_list.curselection()
+        self._rename_on_click = bool(chosen) and chosen[0] == self._layer_src
 
     def _layer_motion(self, event) -> None:
         if self._layer_press_y is None or abs(event.y - self._layer_press_y) < 4:
@@ -141,6 +147,8 @@ class Window:
         self._layer_src = None
         self._layer_press_y = None
         if not self._layer_dragged:
+            if self._rename_on_click and src is not None and self._rename_entry is None:
+                self._begin_rename(src)
             return
         self._layer_dragged = False
         dst = self.layer_list.nearest(event.y)
@@ -151,9 +159,14 @@ class Window:
         target = self._rows[dst]
         box = self.layer_list.bbox(dst)
         fraction = 0.5
+        on_name = False
         if box and box[3]:
             fraction = (event.y - box[1]) / box[3]
-        if isinstance(target, Group) and 0.25 <= fraction <= 0.75:
+            if isinstance(target, Group):
+                edge = 4 if box[3] > 12 else 0
+                offset = event.y - box[1]
+                on_name = edge <= offset < box[3] - edge
+        if on_name:
             moved = place_into(self.stage.document, node, target)
         elif fraction < 0.5:
             moved = place_above(self.stage.document, node, target)
@@ -166,6 +179,49 @@ class Window:
         self._refresh_layers()
         self._paint()
         self._keep()
+
+    def _begin_rename(self, index: int) -> None:
+        box = self.layer_list.bbox(index)
+        if not box:
+            return
+        entry = tkinter.Entry(self.layer_list)
+        entry.insert(0, self._rows[index].name)
+        entry.selection_range(0, "end")
+        entry.place(x=0, y=box[1], width=box[2], height=box[3])
+        entry.focus_set()
+        entry.bind("<Return>", self._commit_rename)
+        entry.bind("<Escape>", self._cancel_rename)
+        entry.bind("<FocusOut>", self._commit_rename)
+        self._rename_entry = entry
+        self._rename_index = index
+
+    def _commit_rename(self, event=None) -> str:
+        entry = self._rename_entry
+        index = self._rename_index
+        if entry is None or index is None:
+            return "break"
+        item = self._rows[index]
+        before = item.name
+        if not rename_item(self.stage.document, item, entry.get()):
+            if getattr(event, "keysym", "") == "Return":
+                return "break"
+            self._cancel_rename()
+            return "break"
+        self._rename_entry = None
+        self._rename_index = None
+        entry.destroy()
+        if item.name != before:
+            self._refresh_layers()
+            self._keep()
+        return "break"
+
+    def _cancel_rename(self, _event=None) -> str:
+        entry = self._rename_entry
+        self._rename_entry = None
+        self._rename_index = None
+        if entry is not None:
+            entry.destroy()
+        return "break"
 
     def _choose_layer(self, _event=None) -> None:
         chosen = self.layer_list.curselection()
@@ -238,6 +294,8 @@ class Window:
             self.root.title(f"Sinopia — {self.tool}")
 
     def _key(self, event) -> None:
+        if self._rename_entry is not None:
+            return
         if self.stage.lettering.active:
             key = getattr(event, "keysym", "")
             if key == "Return":
