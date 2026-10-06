@@ -412,7 +412,7 @@ class Window:
             justify="left",
             wraplength=mark.width(),
         ).pack(anchor="w", pady=(8, 0))
-        tkinter.Label(words, text="Will Hinds, 2026", bg=RAIL).pack(anchor="sw", pady=(12, 0))
+        tkinter.Label(words, text="Copyright 2026 Will Hinds\nApache License 2.0", bg=RAIL, justify="left").pack(anchor="sw", pady=(12, 0))
         tkinter.Button(words, text="OK", width=8, command=dialog.destroy).pack(anchor="se", pady=(8, 0))
         dialog.bind("<Return>", lambda _event: dialog.destroy())
         dialog.bind("<Escape>", lambda _event: dialog.destroy())

@@ -44,7 +44,7 @@ class MarkTest(unittest.TestCase):
             window.root.update()
             texts = [widget.cget("text") for widget in _labels(dialog)]
             images = [widget.cget("image") for widget in _labels(dialog)]
-            self.assertIn("Will Hinds, 2026", texts)
+            self.assertIn("Copyright 2026 Will Hinds\nApache License 2.0", texts)
             self.assertTrue(any(images))
             self.assertEqual(len(window._icons), 3)
         finally:

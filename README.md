@@ -4,7 +4,7 @@ A lightweight, minimalist compositor. The aim is an early Photoshop: layers, mas
 
 The picture you keep is a folder of PNGs plus `stack.txt`. PSD, PNG, and JPEG are exports. If the program stops, the pictures are still files you can open.
 
-Sinopia is by Will Hinds. Published 2026. The mark is a plaster fragment with a mother and child drawn in sinopia. That picture is the window icon, and `sinopia.png` is the same file for a desktop shortcut.
+Sinopia is by Will Hinds. Copyright 2026 Will Hinds, under the Apache License, Version 2.0. The mark is a plaster fragment with a mother and child drawn in sinopia. That picture is the window icon, and `sinopia.png` is the same file for a desktop shortcut.
 
 What it does now: layers and groups, masks, a drop shadow, brush, type, transform, marquee, zoom, undo, canvas size, and PNG or JPEG open and save. The window shows the same pixels the compositor writes. Still ahead: the healing brush, PSD export, and smart objects.
 
