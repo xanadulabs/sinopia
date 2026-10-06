@@ -408,8 +408,8 @@ class Window:
         tkinter.Label(
             words,
             text=(
-                "A lightweight, minimalist compositor. An early Photoshop, "
-                "without the modern bells and whistles.\n\n"
+                "A lightweight, minimalist compositor for layered pictures. "
+                "Layers, masks, and a few tools.\n\n"
                 "The picture you keep is a folder of PNGs plus stack.txt. "
                 "PNG and JPEG are copies."
             ),
@@ -1213,7 +1213,7 @@ class Window:
         return None
 
     def _hit_turn(self, x: int, y: int) -> bool:
-        """Just outside a corner of the tilted box. That is where Photoshop turns it."""
+        """Just outside a corner of the tilted box. Dragging there turns it."""
         corners = self._screen_corners()
         if not corners or self._inside_box(x, y):
             return False

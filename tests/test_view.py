@@ -64,7 +64,7 @@ class ViewTest(unittest.TestCase):
         finally:
             window.root.destroy()
 
-    def test_photoshop_shortcuts_for_the_tools_we_have(self):
+    def test_shortcuts_for_the_tools_we_have(self):
         from sinopia.window import Window
 
         window = Window(Stage(proof_document()))

@@ -1,8 +1,10 @@
 # Sinopia
 
-A lightweight, minimalist compositor. The aim is an early Photoshop: layers, masks, and a few tools, without Camera Raw, a photo importer, or the rest of the modern suite.
+![Two rounded tiles, plaster behind sinopia](sinopia.png)
 
-The picture you keep is a folder of PNGs plus `stack.txt`. PSD, PNG, and JPEG are exports. If the program stops, the pictures are still files you can open.
+A lightweight, minimalist compositor for layered pictures. It keeps layers, masks, and a few tools, and leaves out a camera importer and the rest of a modern photo suite.
+
+The picture you keep is a folder of PNGs plus `stack.txt`. PNG and JPEG are copies. If the program stops, the pictures are still files you can open.
 
 Sinopia is by Will Hinds. Copyright 2026 Will Hinds, under the Apache License, Version 2.0. The mark is two rounded tiles, plaster behind sinopia. `sinopia.png` is that drawing, for a desktop shortcut.
 
@@ -49,7 +51,7 @@ Save writes the folder of PNGs plus `stack.txt`. That folder is the file you kee
 
 Copy keeps the pixels inside the marquee, from the picture you see, and puts them on the clipboard. Select All selects the whole picture. Deselect clears the marquee. Free Transform selects the transform tool.
 
-Canvas Size adds pixels. Pick the square where the picture stays, then type how many pixels to add. The new area is empty and shows white. Photoshop 7 has no shortcut for this, so it stays on the menu.
+Canvas Size adds pixels. Pick the square where the picture stays, then type how many pixels to add. The new area is empty and shows white. It stays on the menu.
 
 ### View
 
@@ -92,8 +94,6 @@ About Sinopia shows the mark on the left, about half the box, and the descriptio
 
 ### Shortcuts
 
-These match Photoshop 7 where the feature exists here.
-
 | Action | Shortcut |
 | --- | --- |
 | New | Ctrl+N |
@@ -107,7 +107,7 @@ These match Photoshop 7 where the feature exists here.
 | Select All | Ctrl+A |
 | Deselect | Ctrl+D |
 | Free Transform | Ctrl+T, and `f` |
-| Turn, cancel | Drag outside a corner. Escape puts the gesture back. |
+| Turn, keep, cancel | Drag outside a corner. Enter keeps it. Escape puts the transform back. |
 | New Layer | Ctrl+Shift+N |
 | Group | Ctrl+G |
 | Zoom In | Ctrl++ , and `+` |

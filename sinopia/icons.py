@@ -35,7 +35,7 @@ def tool_image(root, name: str, letter: str):
 
 
 def rotate_cursor() -> str:
-    """The curved double arrow Photoshop shows just outside a corner."""
+    """The curved double arrow shown just outside a corner."""
     grid = [["0"] * SIZE for _ in range(SIZE)]
     _draw_rotate(grid)
     bits = ["".join(row) for row in grid]

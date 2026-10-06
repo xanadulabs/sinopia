@@ -207,7 +207,7 @@ class Stage:
         return ((left + right) / 2, (top + bottom) / 2)
 
     def frame_corners(self) -> list[tuple[float, float]] | None:
-        """The free-transform box. It stays tilted until Enter, the way Photoshop does."""
+        """The free-transform box. It stays tilted until Enter."""
         if self._session is None:
             box = self.content_box()
             if box is None:
