@@ -4,6 +4,8 @@ A lightweight, minimalist compositor. The aim is an early Photoshop: layers, mas
 
 The picture you keep is a folder of PNGs plus `stack.txt`. PSD, PNG, and JPEG are exports. If the program stops, the pictures are still files you can open.
 
+Copyright 2026 Will Hinds. Licensed under the Apache License, Version 2.0.
+
 Layers stack from the bottom. Each one has an image, a mask, an opacity, and a blend mode. Normal comes first. The window will show the same pixels the compositor writes. After that come a brush, type edited on the canvas, layer styles, and the healing brush. A PSD we write should open in Photoshop 7 and in current Photoshop. Smart objects wait until a normal layer already works.
 
 ## Milestones
