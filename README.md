@@ -10,6 +10,8 @@ Sinopia is by Will Hinds. Copyright 2026 Will Hinds, under the Apache License, V
 
 What it does now: layers and groups, masks, a drop shadow, a brush with diameter, hardness, opacity, flow, color, and erase, type, transform with rotate, marquee, zoom, undo, canvas size, and PNG or JPEG open and save. The window shows the same pixels the compositor writes. Still ahead: the healing brush, PSD export, and smart objects.
 
+Start it with `python3 -m sinopia`. The window opens on the sample picture, kept in `out/document/`. Run it again and that folder opens.
+
 ## Milestones
 
 1. **Composite.** Done. A headless Normal blend of layers and masks, written to a PNG.
@@ -21,25 +23,7 @@ What it does now: layers and groups, masks, a drop shadow, a brush with diameter
 7. **PSD, PNG, and JPEG export.** PNG and JPEG open and save from the File menu. The folder stays the file we keep. PSD is still ahead.
 8. **Smart objects.** A nested folder plus a transform.
 
-## How to use it
-
-```
-python3 -m sinopia
-```
-
-That writes `out/proof.png`, a red field with a soft green circle over it, and `out/document/`.
-
-```
-python3 -m sinopia.window
-```
-
-That opens the same picture. The workspace stays one size. A smaller picture sits in the gray middle. A larger one scrolls. The picture opens at actual pixels, and the zoom stays there until you change it.
-
-```
-python3 -m unittest discover -s tests
-```
-
-### File
+## File
 
 File → New asks for a width and height. If the clipboard holds a picture, including one from Print Screen, those dimensions are filled in. Leaving that size puts the picture on the layer. A size you type is a white picture. A rectangle copied with the marquee is offered the same way.
 
@@ -47,17 +31,17 @@ File → Open lists the pictures in a folder and shows a small preview of the on
 
 Save writes the folder of PNGs plus `stack.txt`. That folder is the file you keep. Save As writes a PNG or JPEG copy of the picture you see. Letting go of a drag or a stroke saves the folder too. Exit closes the window.
 
-### Edit
+## Edit
 
 Copy keeps the pixels inside the marquee, from the picture you see, and puts them on the clipboard. Select All selects the whole picture. Deselect clears the marquee. Free Transform selects the transform tool.
 
 Canvas Size adds pixels. Pick the square where the picture stays, then type how many pixels to add. The new area is empty and shows white. It stays on the menu.
 
-### View
+## View
 
 Zoom In and Zoom Out change the view. Fit on Screen picks the largest whole-pixel zoom that fits in the workspace, and it does not zoom out past actual pixels. A picture larger than the window stays at 1× and scrolls. Actual Pixels is 1×. The magnifying glass does the same: click zooms in, Alt-click zooms out. `+` and `−` zoom too.
 
-### Tools
+## Tools
 
 The tools sit in a column on the left. Each button keeps its shortcut letter in the corner, and the pointer on the picture matches the tool.
 
@@ -76,7 +60,7 @@ With the brush selected, the top bar sets the diameter (1 to 500), the hardness,
 
 Transform draws a box around the layer, with a cross at the center. Drag a corner and the opposite corner stays put. Drag an edge to scale one side. Drag inside the box to move the layer. Shift on a corner keeps the proportions. Just outside a corner the pointer becomes a curved arrow: dragging there turns the box with the layer, around the cross, and Shift snaps that turn to 15 degrees. The box stays tilted while you adjust it. Drag the cross to move the center. The angle box is the turn so far; change the number and it turns from where this transform started. Enter keeps it. Escape puts the whole transform back.
 
-### Layers
+## Layers
 
 Layers are listed on the right, top of the picture first. Drag a name to restack it. A group's name moves the whole group. Drop a row on the upper half of a layer to put it above that layer, or the lower half to put it under. Drop it on a group's name to put it inside that group. Click a selected name to rename it. Spaces become hyphens, because the name is the PNG file.
 
@@ -84,15 +68,15 @@ New, Group, and Delete sit under the list. New adds a layer. Group wraps the sel
 
 A layer in the folder can carry a mask PNG. The brush does not paint that mask. A drop shadow is stored on the layer as `shadow dx dy`.
 
-### History
+## History
 
 The list under the layers is the history, forty steps at most. A step is named New, Open, Move, Brush, Type, Transform, Canvas Size, Layer, Group, Delete Layer, Delete Group, Restack, or Rename. Click a row to jump there. Ctrl+Z steps backward through that list. Alt+Ctrl+Z does the same step. Ctrl+Shift+Z steps forward, and so does Ctrl+Y.
 
-### About
+## About
 
 About Sinopia shows the mark on the left, about half the box, and the description on the right, with the name and the year. The same mark sits in the title bar.
 
-### Shortcuts
+## Shortcuts
 
 | Action | Shortcut |
 | --- | --- |

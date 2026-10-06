@@ -93,6 +93,14 @@ class ViewTest(unittest.TestCase):
             window.root.destroy()
 
 
+class StartTest(unittest.TestCase):
+    def test_the_module_opens_the_window(self):
+        import sinopia.__main__ as program
+        from sinopia.window import main
+
+        self.assertIs(program.main, main)
+
+
 class _Point:
     def __init__(self, x: int, y: int):
         self.x = x
