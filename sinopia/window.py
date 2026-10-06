@@ -21,6 +21,7 @@ from sinopia.document import (
     rename_item,
     save,
 )
+from sinopia.icons import tool_cursor, tool_image
 from sinopia.proof import proof_document
 from sinopia.stage import Stage, ppm_bytes
 from sinopia.typeface import font_families
@@ -50,12 +51,12 @@ class Window:
         rail = tkinter.Frame(body, bg=RAIL, padx=4, pady=4)
         rail.pack(side="left", fill="y")
         self.buttons: dict[str, tkinter.Button] = {}
+        self._tool_images = {}
         for name, letter in TOOLS:
+            self._tool_images[name] = tool_image(self.root, name, letter)
             button = tkinter.Button(
                 rail,
-                text=letter,
-                width=2,
-                font=("Sans", 12, "bold"),
+                image=self._tool_images[name],
                 bg=RAIL,
                 activebackground=RAIL,
                 relief="raised",
@@ -387,6 +388,7 @@ class Window:
                 button.configure(relief="sunken", bg=RAIL_PRESSED)
             else:
                 button.configure(relief="raised", bg=RAIL)
+        self.label.configure(cursor=tool_cursor(self.tool))
 
     def _title(self) -> None:
         if self.stage.lettering.active:
