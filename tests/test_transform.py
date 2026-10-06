@@ -78,6 +78,28 @@ class TransformTest(unittest.TestCase):
         left, top, right, bottom = stage.content_box()
         self.assertGreater(bottom - top, right - left)
 
+    def test_the_box_stays_tilted_until_enter(self):
+        image = Image(8, 8)
+        for y in range(3, 5):
+            for x in range(2, 6):
+                image.set(x, y, RED)
+        stage = Stage(Document(8, 8, [Layer("red", image)]))
+        stage.rotate_by(90)
+        start, end = stage.frame_corners()[0], stage.frame_corners()[1]
+        self.assertGreater(abs(end[1] - start[1]), abs(end[0] - start[0]))
+        stage.transform_commit()
+        start, end = stage.frame_corners()[0], stage.frame_corners()[1]
+        self.assertGreater(abs(end[0] - start[0]), abs(end[1] - start[1]))
+
+    def test_escape_after_letting_go_puts_the_pixels_back(self):
+        image = _block()
+        stage = Stage(Document(4, 4, [Layer("red", image)]))
+        before = bytes(image.pixels)
+        stage.transform_press("se", 2, 2)
+        stage.transform_release(4, 4)
+        stage.transform_cancel()
+        self.assertEqual(bytes(image.pixels), before)
+
     def test_escape_puts_the_pixels_back(self):
         image = _block()
         stage = Stage(Document(4, 4, [Layer("red", image)]))

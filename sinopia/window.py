@@ -687,6 +687,8 @@ class Window:
     def set_tool(self, tool: str) -> None:
         if tool not in ("select", "move", "brush", "type", "transform", "zoom"):
             raise ValueError(f"unknown tool {tool}")
+        if self.tool == "transform" and tool != "transform" and self.stage._session is not None:
+            self._keep_transform()
         self.tool = tool
         self._mark_tools()
         self._show_options()
@@ -823,12 +825,12 @@ class Window:
             command=self._apply_angle,
         )
         spin.pack(side="left", pady=4)
-        spin.bind("<Return>", self._apply_angle)
+        spin.bind("<Return>", self._angle_return)
         spin.bind("<FocusOut>", self._apply_angle)
         spin.bind("<Escape>", self._escape_transform)
         tkinter.Label(
             self.options,
-            text="Outside a corner turns. Shift snaps to 15°. Escape puts it back.",
+            text="Outside a corner turns the box. Shift snaps to 15°. Enter keeps it. Escape puts it back.",
             bg=RAIL,
         ).pack(side="left", padx=6)
 
@@ -839,13 +841,27 @@ class Window:
             shown = int(float(self._angle_var.get()))
         except (tkinter.TclError, ValueError):
             return
-        delta = shown - getattr(self, "_applied_angle", 0)
-        self._applied_angle = shown
-        if delta == 0:
+        if self.stage._session is not None and shown == int(round(self.stage.turn)):
+            self._applied_angle = shown
             return
-        self.stage.rotate_by(delta)
+        self._applied_angle = shown
+        self.stage.set_angle(shown)
+        self._paint()
+
+    def _angle_return(self, _event=None):
+        self._apply_angle()
+        return self._keep_transform()
+
+    def _keep_transform(self, _event=None):
+        """Enter. The turn stays in the pixels, and the box stands upright again."""
+        if self.stage._session is None:
+            return "break"
+        self.stage.transform_commit()
+        self._applied_angle = 0
+        self._remember_angle(0)
         self._commit("Transform")
         self._paint()
+        return "break"
 
     def _remember_angle(self, degrees: float) -> None:
         if getattr(self, "_angle_var", None) is None:
@@ -970,6 +986,8 @@ class Window:
             return
         if getattr(event, "keysym", "") == "Escape" and self.tool == "transform":
             return self._escape_transform()
+        if getattr(event, "keysym", "") == "Return" and self.tool == "transform":
+            return self._keep_transform()
         if event.char in ("b", "B"):
             self.stage.erase = False
             self.set_tool("brush")
@@ -1011,7 +1029,7 @@ class Window:
     def _over_picture(self, event):
         x = int(self.view.canvasx(event.x)) - self._origin_x
         y = int(self.view.canvasy(event.y)) - self._origin_y
-        margin = 48 if self.tool == "transform" else 0
+        margin = 80 if self.tool == "transform" else 0
         if not (-margin <= x < self.photo.width() + margin and -margin <= y < self.photo.height() + margin):
             return None
         return _Pointer(x, y, getattr(event, "state", 0))
@@ -1123,7 +1141,6 @@ class Window:
             angle = self.stage.transform_release(x, y, _shifted(event))
             if angle is not None:
                 self._remember_angle(angle)
-            self._commit("Transform")
         elif self.tool == "zoom":
             alt = bool(getattr(event, "state", 0) & 0x8)
             self.set_scale(self.scale // 2 if alt else self.scale * 2)
@@ -1145,6 +1162,8 @@ class Window:
 
     def _select_clicked(self, x: int, y: int) -> None:
         hit = self.stage.pick(x, y)
+        if hit is not None and hit is not self.stage.target and self.stage._session is not None:
+            self._keep_transform()
         if hit is not None:
             self.stage.select(hit)
         self._highlight_selection()
@@ -1156,22 +1175,30 @@ class Window:
         left, top, right, bottom = box
         return left * self.scale, top * self.scale, right * self.scale, bottom * self.scale
 
+    def _screen_corners(self) -> list[tuple[int, int]] | None:
+        corners = self.stage.frame_corners()
+        if not corners:
+            return None
+        return [(int(round(x * self.scale)), int(round(y * self.scale))) for x, y in corners]
+
     def _handle_points(self) -> dict[str, tuple[int, int]]:
-        box = self._box_screen()
-        if box is None:
+        corners = self._screen_corners()
+        if not corners:
             return {}
-        left, top, right, bottom = box
-        mid_x = (left + right) // 2
-        mid_y = (top + bottom) // 2
+        nw, ne, se, sw = corners
+
+        def mid(a: tuple[int, int], b: tuple[int, int]) -> tuple[int, int]:
+            return ((a[0] + b[0]) // 2, (a[1] + b[1]) // 2)
+
         return {
-            "nw": (left, top),
-            "n": (mid_x, top),
-            "ne": (right, top),
-            "e": (right, mid_y),
-            "se": (right, bottom),
-            "s": (mid_x, bottom),
-            "sw": (left, bottom),
-            "w": (left, mid_y),
+            "nw": nw,
+            "n": mid(nw, ne),
+            "ne": ne,
+            "e": mid(ne, se),
+            "se": se,
+            "s": mid(se, sw),
+            "sw": sw,
+            "w": mid(sw, nw),
         }
 
     def _hit_handle(self, x: int, y: int) -> str | None:
@@ -1186,15 +1213,12 @@ class Window:
         return None
 
     def _hit_turn(self, x: int, y: int) -> bool:
-        """Just outside a corner. That is where Photoshop turns the box."""
-        box = self._box_screen()
-        if box is None:
-            return False
-        left, top, right, bottom = box
-        if left < x < right and top < y < bottom:
+        """Just outside a corner of the tilted box. That is where Photoshop turns it."""
+        corners = self._screen_corners()
+        if not corners or self._inside_box(x, y):
             return False
         nearest = 48 * 48
-        for cx, cy in ((left, top), (right, top), (right, bottom), (left, bottom)):
+        for cx, cy in corners:
             distance = (x - cx) ** 2 + (y - cy) ** 2
             if distance < nearest:
                 nearest = distance
@@ -1211,11 +1235,10 @@ class Window:
         return int(point_x * self.scale), int(point_y * self.scale)
 
     def _inside_box(self, x: int, y: int) -> bool:
-        box = self._box_screen()
-        if box is None:
+        corners = self._screen_corners()
+        if not corners:
             return False
-        left, top, right, bottom = box
-        return left < x < right and top < y < bottom
+        return _inside_polygon(x, y, corners)
 
     def _hover(self, event) -> None:
         if self.tool != "transform" or self.stage._transform is not None:
@@ -1254,14 +1277,34 @@ class Window:
         return None
 
     def _draw_handles(self) -> None:
-        box = self._box_screen()
-        if box is None:
+        corners = self._screen_corners()
+        if not corners:
             return
-        left, top, right, bottom = box
-        self._frame(left, top, right, bottom)
+        for index, corner in enumerate(corners):
+            self._line(corner, corners[(index + 1) % 4])
         for name, (x, y) in self._handle_points().items():
             self._knob(x, y, 15 if len(name) == 2 else 9)
         self._draw_pivot()
+
+    def _line(self, start: tuple[int, int], end: tuple[int, int]) -> None:
+        x0, y0 = start
+        x1, y1 = end
+        dx = abs(x1 - x0)
+        dy = abs(y1 - y0)
+        sx = 1 if x0 < x1 else -1
+        sy = 1 if y0 < y1 else -1
+        error = dx - dy
+        while True:
+            self._mark(x0, y0)
+            if x0 == x1 and y0 == y1:
+                return
+            doubled = 2 * error
+            if doubled > -dy:
+                error -= dy
+                x0 += sx
+            if doubled < dx:
+                error += dx
+                y0 += sy
 
     def _draw_pivot(self) -> None:
         px, py = self._pivot_screen()
@@ -1339,6 +1382,20 @@ def _named(document: Document, name: str) -> Layer | Group:
         if item.name == name:
             return item
     return document.layers[-1]
+
+
+def _inside_polygon(x: int, y: int, corners: list[tuple[int, int]]) -> bool:
+    inside = False
+    previous = corners[-1]
+    for corner in corners:
+        x0, y0 = previous
+        x1, y1 = corner
+        if (y0 > y) != (y1 > y):
+            cross = (x1 - x0) * (y - y0) / (y1 - y0) + x0
+            if x < cross:
+                inside = not inside
+        previous = corner
+    return inside
 
 
 def _shifted(event) -> bool:
