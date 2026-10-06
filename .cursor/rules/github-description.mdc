@@ -1,0 +1,17 @@
+---
+description: Keep the GitHub About line and README current when Sinopia gains a feature
+alwaysApply: true
+---
+
+# Update the GitHub description with the work
+
+When a user-visible Sinopia feature is added or changed, update both descriptions in that same change, before pushing.
+
+- **README** — Say what the program does now, and how to use the new feature. Keep the milestone list in the README.
+- **GitHub About** — One or two sentences: the aim, then the capabilities that exist now. Do not put the milestone list in About.
+
+```bash
+gh repo edit xanadulabs/sinopia --description "A lightweight, minimalist compositor for layered pictures. Now: ..."
+```
+
+The folder of PNGs plus `stack.txt` stays the file you keep. Mention that when the change touches how work is stored.

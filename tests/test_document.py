@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from sinopia.document import Document, Layer, flatten, load, save
+from sinopia.document import Document, Group, Layer, flatten, load, rename_item, save
 from sinopia.image import Image
 from sinopia.png import read_png, write_png
 from sinopia.proof import proof_document
@@ -46,10 +46,32 @@ class RoundTripTest(unittest.TestCase):
             text = (folder / "stack.txt").read_text(encoding="utf-8")
             self.assertEqual(
                 text,
-                "size 96 96\nlayer red.png normal 255 -\nlayer green.png normal 255 green.mask.png\n",
+                "size 96 96\n"
+                "layer red.png normal 255 - 0 0\n"
+                "layer green.png normal 255 green.mask.png 0 0\n",
             )
             self.assertTrue((folder / "red.png").is_file())
             self.assertTrue((folder / "green.mask.png").is_file())
+
+    def test_renaming_replaces_the_old_png(self):
+        document = proof_document()
+        with tempfile.TemporaryDirectory() as tmp:
+            folder = Path(tmp)
+            save(document, folder)
+            self.assertTrue(rename_item(document, document.layers[1], "soft light"))
+            self.assertEqual(document.layers[1].name, "soft-light")
+            group = Group("bunch", [document.layers[1]])
+            document.layers[1] = group
+            self.assertTrue(rename_item(document, group, "pile"))
+            self.assertFalse(rename_item(document, document.layers[0], "pile"))
+            save(document, folder)
+            self.assertFalse((folder / "green.png").exists())
+            self.assertFalse((folder / "green.mask.png").exists())
+            self.assertTrue((folder / "soft-light.png").is_file())
+            self.assertTrue((folder / "soft-light.mask.png").is_file())
+            opened = load(folder)
+            self.assertEqual(opened.layers[1].name, "pile")
+            self.assertEqual(opened.layers[1].children[0].name, "soft-light")
 
     def test_bottom_layer_can_be_partial(self):
         mask = bytearray(b"\xff\x00\x00\x00")
