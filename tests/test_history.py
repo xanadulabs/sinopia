@@ -29,8 +29,9 @@ class HistoryWindowTest(unittest.TestCase):
         window = Window(Stage(proof_document()))
         try:
             window.root.update()
-            self.assertEqual(window.file_menu.entrycget(0, "label"), "Open...")
-            self.assertEqual(window.file_menu.entrycget(2, "label"), "Save As...")
+            self.assertEqual(window.file_menu.entrycget(0, "label"), "New...")
+            self.assertEqual(window.file_menu.entrycget(1, "label"), "Open...")
+            self.assertEqual(window.file_menu.entrycget(3, "label"), "Save As...")
             self.assertEqual(window.history_list.get(0), "New")
             self.assertEqual(str(window.edit_menu.entrycget(0, "state")), "disabled")
             window._press(_Click(16, 16))

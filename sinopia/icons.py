@@ -1,4 +1,4 @@
-"""Toolbox pictures. The shapes are ours: a move cross, a brush nib, an A, a scale box, and a glass.
+"""Toolbox pictures. The shapes are ours: a dashed marquee, a move cross, a brush nib, an A, a scale box, and a glass.
 
 The shortcut letter sits in the corner of the button. The canvas cursor is the
 shape alone, so the click lands on the working point.
@@ -41,6 +41,9 @@ def tool_cursor(name: str) -> str:
 
 
 def _draw_shape(grid: list[list[str]], name: str) -> tuple[int, int]:
+    if name == "select":
+        _dash_rect(grid, 2, 2, 15, 13)
+        return 2, 2
     if name == "move":
         for i in range(4, 20):
             _plot(grid, i, 11)
@@ -106,6 +109,20 @@ def _draw_shape(grid: list[list[str]], name: str) -> tuple[int, int]:
             _plot(grid, 13 + step, 11 + step)
         return cx, cy
     raise ValueError(f"unknown tool {name}")
+
+
+def _dash_rect(grid: list[list[str]], left: int, top: int, right: int, bottom: int) -> None:
+    def dash(index: int) -> bool:
+        return (index // 2) % 2 == 0
+
+    for index, x in enumerate(range(left, right + 1)):
+        if dash(index):
+            _plot(grid, x, top)
+            _plot(grid, x, bottom)
+    for index, y in enumerate(range(top, bottom + 1)):
+        if dash(index):
+            _plot(grid, left, y)
+            _plot(grid, right, y)
 
 
 def _head(grid: list[list[str]], x: int, y: int, dx: int, dy: int) -> None:

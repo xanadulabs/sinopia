@@ -282,3 +282,80 @@ def _photo(master: tkinter.Misc, image: Image) -> tkinter.PhotoImage:
     path = Path("/tmp/sinopia-preview.ppm")
     path.write_bytes(header + rgb)
     return tkinter.PhotoImage(master=master, file=str(path))
+
+
+MAX_EDGE = 8192
+
+
+def choose_size(
+    parent: tkinter.Misc,
+    current: tuple[int, int],
+    clipboard: tuple[int, int] | None,
+) -> tuple[int, int] | None:
+    """Width and height for a new picture. A copied selection fills the fields."""
+    dialog = SizeDialog(parent, current, clipboard)
+    parent.wait_window(dialog.top)
+    return dialog.chosen
+
+
+class SizeDialog:
+    def __init__(
+        self,
+        parent: tkinter.Misc,
+        current: tuple[int, int],
+        clipboard: tuple[int, int] | None,
+    ):
+        self.chosen: tuple[int, int] | None = None
+        self._clipboard = clipboard
+        self.top = tkinter.Toplevel(parent)
+        self.top.title("New")
+        self.top.configure(bg=RAIL)
+        self.top.transient(parent)
+        start = clipboard if clipboard is not None else current
+        form = tkinter.Frame(self.top, bg=RAIL)
+        form.pack(padx=12, pady=(12, 4))
+        tkinter.Label(form, text="Width", bg=RAIL).grid(row=0, column=0, sticky="w")
+        tkinter.Label(form, text="Height", bg=RAIL).grid(row=1, column=0, sticky="w", pady=(6, 0))
+        self.width_var = tkinter.StringVar(value=str(start[0]))
+        self.height_var = tkinter.StringVar(value=str(start[1]))
+        tkinter.Entry(form, textvariable=self.width_var, width=8).grid(row=0, column=1, padx=(8, 0))
+        tkinter.Entry(form, textvariable=self.height_var, width=8).grid(row=1, column=1, padx=(8, 0), pady=(6, 0))
+        note = "Type the width and height in pixels."
+        if clipboard is not None:
+            note = f"Clipboard is {clipboard[0]} × {clipboard[1]}."
+            tkinter.Button(form, text="Clipboard", command=self._use_clipboard).grid(row=0, column=2, rowspan=2, padx=(8, 0))
+        self.note = tkinter.Label(self.top, text=note, bg=RAIL, anchor="w")
+        self.note.pack(fill="x", padx=12, pady=(4, 0))
+        buttons = tkinter.Frame(self.top, bg=RAIL)
+        buttons.pack(fill="x", padx=12, pady=12)
+        tkinter.Button(buttons, text="Cancel", command=self._cancel).pack(side="right")
+        tkinter.Button(buttons, text="OK", command=self._accept).pack(side="right", padx=(0, 6))
+        self.top.bind("<Return>", self._accept)
+        self.top.bind("<Escape>", self._cancel)
+        self.top.protocol("WM_DELETE_WINDOW", self._cancel)
+        self.top.grab_set()
+
+    def _use_clipboard(self) -> None:
+        if self._clipboard is None:
+            return
+        self.width_var.set(str(self._clipboard[0]))
+        self.height_var.set(str(self._clipboard[1]))
+        self.note.configure(text=f"Clipboard is {self._clipboard[0]} × {self._clipboard[1]}.")
+
+    def _accept(self, _event=None) -> str:
+        try:
+            width = int(self.width_var.get())
+            height = int(self.height_var.get())
+        except ValueError:
+            self.note.configure(text="Type the width and height in pixels.")
+            return "break"
+        if not (1 <= width <= MAX_EDGE and 1 <= height <= MAX_EDGE):
+            self.note.configure(text=f"Use a size from 1 to {MAX_EDGE}.")
+            return "break"
+        self.chosen = (width, height)
+        self.top.destroy()
+        return "break"
+
+    def _cancel(self, _event=None) -> None:
+        self.chosen = None
+        self.top.destroy()

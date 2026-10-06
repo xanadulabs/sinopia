@@ -27,7 +27,9 @@ from sinopia.document import (
 from sinopia.exchange import layer_name, read_picture, write_picture
 from sinopia.history import History
 from sinopia.icons import tool_cursor, tool_image
-from sinopia.picker import choose_picture
+from sinopia.image import Image
+from sinopia.picker import choose_picture, choose_size
+from sinopia.select import copied_image, copy_pixels, crop, marquee_box
 from sinopia.proof import proof_document
 from sinopia.stage import Stage, ppm_bytes
 from sinopia.typeface import font_families
@@ -37,7 +39,14 @@ FRAME = Path("/tmp/sinopia-frame.ppm")
 SCALE = 8
 RAIL = "#d6d6d6"
 RAIL_PRESSED = "#a6a6a6"
-TOOLS = (("move", "V"), ("zoom", "Z"), ("brush", "B"), ("type", "T"), ("transform", "F"))
+TOOLS = (
+    ("select", "M"),
+    ("move", "V"),
+    ("zoom", "Z"),
+    ("brush", "B"),
+    ("type", "T"),
+    ("transform", "F"),
+)
 
 
 class Window:
@@ -46,6 +55,8 @@ class Window:
         self.on_release = on_release
         picture = stage.picture
         self.tool = "move"
+        self.marquee: tuple[int, int, int, int] | None = None
+        self._anchor: tuple[int, int] | None = None
         self.scale = SCALE
         self._pointer: tuple[int, int] | None = None
         self._paint_after: str | None = None
@@ -129,7 +140,10 @@ class Window:
         self.label.bind("<Motion>", self._hover)
         self.root.bind("<KeyPress>", self._key)
         self.root.bind("<Control-s>", self._save)
+        self.root.bind("<Control-n>", self._new_file)
         self.root.bind("<Control-o>", self._open_file)
+        self.root.bind("<Control-c>", self._copy)
+        self.root.bind("<Control-C>", self._copy)
         self.root.bind("<Control-Shift-S>", self._save_as)
         self.root.bind("<Control-z>", self._undo)
         self.root.bind("<Control-Z>", self._undo)
@@ -293,6 +307,7 @@ class Window:
     def _build_menu(self) -> None:
         bar = tkinter.Menu(self.root, tearoff=0)
         self.file_menu = tkinter.Menu(bar, tearoff=0)
+        self.file_menu.add_command(label="New...", command=self._new_file, accelerator="Ctrl+N")
         self.file_menu.add_command(label="Open...", command=self._open_file, accelerator="Ctrl+O")
         self.file_menu.add_command(label="Save", command=self._save, accelerator="Ctrl+S")
         self.file_menu.add_command(label="Save As...", command=self._save_as, accelerator="Ctrl+Shift+S")
@@ -302,6 +317,8 @@ class Window:
         self.edit_menu = tkinter.Menu(bar, tearoff=0)
         self.edit_menu.add_command(label="Undo", command=self._undo, accelerator="Ctrl+Z")
         self.edit_menu.add_command(label="Redo", command=self._redo, accelerator="Ctrl+Shift+Z")
+        self.edit_menu.add_separator()
+        self.edit_menu.add_command(label="Copy", command=self._copy, accelerator="Ctrl+C")
         bar.add_cascade(label="Edit", menu=self.edit_menu)
         view = tkinter.Menu(bar, tearoff=0)
         view.add_command(label="Zoom In", command=lambda: self.set_scale(self.scale * 2), accelerator="+")
@@ -322,6 +339,35 @@ class Window:
             "PNG and JPEG are copies.",
             parent=self.root,
         )
+
+    def _new_file(self, _event=None):
+        copied = copied_image()
+        clipboard = None if copied is None else (copied.width, copied.height)
+        size = choose_size(
+            self.root,
+            (self.stage.document.width, self.stage.document.height),
+            clipboard,
+        )
+        if size is None:
+            return "break"
+        self._apply_new(*size)
+        return "break"
+
+    def _apply_new(self, width: int, height: int) -> None:
+        document = self.stage.document
+        document.width = width
+        document.height = height
+        document.layers = [Layer("layer", Image(width, height, (255, 255, 255, 255)))]
+        self.marquee = None
+        self.history.commit("New")
+        self._restore_view(fit=True)
+        self._keep()
+
+    def _copy(self, _event=None):
+        if self.stage.lettering.active or self._rename_entry is not None or self.marquee is None:
+            return "break"
+        copy_pixels(crop(self.stage.picture, self.marquee))
+        return "break"
 
     def _open_file(self, _event=None):
         path = choose_picture(self.root, self._open_dir)
@@ -447,7 +493,7 @@ class Window:
             self._zoom_readout.configure(text=f"{self.scale}×")
 
     def set_tool(self, tool: str) -> None:
-        if tool not in ("move", "brush", "type", "transform", "zoom"):
+        if tool not in ("select", "move", "brush", "type", "transform", "zoom"):
             raise ValueError(f"unknown tool {tool}")
         self.tool = tool
         self._mark_tools()
@@ -470,6 +516,12 @@ class Window:
             tkinter.Label(self.options, text="Click to zoom in. Alt-click to zoom out.", bg=RAIL).pack(
                 side="left", padx=6, pady=4
             )
+        elif self.tool == "select":
+            tkinter.Label(
+                self.options,
+                text="Drag a rectangle. Shift keeps it square. Copy takes those pixels.",
+                bg=RAIL,
+            ).pack(side="left", padx=6, pady=4)
         else:
             tkinter.Label(self.options, text="Move", bg=RAIL).pack(side="left", padx=6, pady=4)
         self._zoom_readout = tkinter.Label(self.options, text=f"{self.scale}×", bg=RAIL)
@@ -602,6 +654,8 @@ class Window:
             self.set_tool("transform")
         elif event.char in ("z", "Z"):
             self.set_tool("zoom")
+        elif event.char in ("m", "M"):
+            self.set_tool("select")
         elif getattr(event, "keysym", "") in ("plus", "equal", "KP_Add"):
             self.set_scale(self.scale * 2)
         elif getattr(event, "keysym", "") in ("minus", "KP_Subtract"):
@@ -614,8 +668,13 @@ class Window:
         self.root.focus_set()
         x, y = self._doc(event)
         self._pointer = (x, y)
-        self._select_clicked(x, y)
-        if self.tool == "brush":
+        if self.tool != "select":
+            self._select_clicked(x, y)
+        if self.tool == "select":
+            self._anchor = (x, y)
+            self.marquee = None
+            self._paint()
+        elif self.tool == "brush":
             self.stage.brush_press(x, y)
             self._paint()
         elif self.tool == "type":
@@ -639,6 +698,10 @@ class Window:
         if (x, y) == self._pointer:
             return
         self._pointer = (x, y)
+        if self.tool == "select" and self._anchor is not None:
+            self.marquee = marquee_box(self._anchor, (x, y), _shifted(event), self.stage.picture.width, self.stage.picture.height)
+            self._schedule()
+            return
         if self.tool == "brush":
             self.stage.brush_drag(x, y)
         elif self.tool == "move":
@@ -675,6 +738,17 @@ class Window:
         elif self.tool == "zoom":
             alt = bool(getattr(event, "state", 0) & 0x8)
             self.set_scale(self.scale // 2 if alt else self.scale * 2)
+            return
+        elif self.tool == "select" and self._anchor is not None:
+            self.marquee = marquee_box(
+                self._anchor,
+                (x, y),
+                _shifted(event),
+                self.stage.picture.width,
+                self.stage.picture.height,
+            )
+            self._anchor = None
+            self._paint()
             return
         self._paint()
         if self.on_release is not None:
@@ -786,6 +860,27 @@ class Window:
         self.photo.tk.call(self.photo, "copy", self._source, "-zoom", self.scale, self.scale)
         if self.tool == "transform":
             self._draw_handles()
+        self._draw_marquee()
+
+    def _draw_marquee(self) -> None:
+        if self.marquee is None:
+            return
+        left, top, right, bottom = self.marquee
+        scale = self.scale
+        self._ants(left * scale, top * scale, right * scale, bottom * scale)
+
+    def _ants(self, left: int, top: int, right: int, bottom: int) -> None:
+        def dash(index: int) -> str:
+            return "#000000" if (index // 4) % 2 == 0 else "#ffffff"
+
+        for index, x in enumerate(range(left, max(left, right))):
+            color = dash(index)
+            self._mark(x, top, color)
+            self._mark(x, bottom - 1, color)
+        for index, y in enumerate(range(top, max(top, bottom))):
+            color = dash(index)
+            self._mark(left, y, color)
+            self._mark(right - 1, y, color)
 
     def mainloop(self) -> None:
         self.root.mainloop()

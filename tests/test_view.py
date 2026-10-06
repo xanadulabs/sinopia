@@ -37,7 +37,7 @@ class ViewTest(unittest.TestCase):
         calls = []
         window = Window(Stage(proof_document()), on_release=lambda: calls.append("saved"))
         try:
-            window.file_menu.invoke(1)
+            window.file_menu.invoke(2)
             window.root.focus_force()
             window.root.update()
             window.root.event_generate("<Control-Key-s>")
