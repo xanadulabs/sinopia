@@ -39,6 +39,7 @@ class IconWindowTest(unittest.TestCase):
             self.assertIn("type", str(window.label.cget("cursor")))
             window.set_tool("transform")
             self.assertIn("transform", str(window.label.cget("cursor")))
-            self.assertIn("corner", window.options.winfo_children()[0].cget("text"))
+            words = " ".join(child.cget("text") for child in window.options.winfo_children())
+            self.assertIn("corner", words)
         finally:
             window.root.destroy()

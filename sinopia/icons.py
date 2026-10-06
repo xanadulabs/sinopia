@@ -4,6 +4,7 @@ The shortcut letter sits in the corner of the button. The canvas cursor is the
 shape alone, so the click lands on the working point.
 """
 
+import math
 from pathlib import Path
 
 from sinopia.glyphs import GLYPHS
@@ -31,6 +32,43 @@ def tool_image(root, name: str, letter: str):
             if bit == "1":
                 image.put(INK, (x, y))
     return image.zoom(BUTTON_ZOOM, BUTTON_ZOOM)
+
+
+def rotate_cursor() -> str:
+    """The curved double arrow Photoshop shows just outside a corner."""
+    grid = [["0"] * SIZE for _ in range(SIZE)]
+    _draw_rotate(grid)
+    bits = ["".join(row) for row in grid]
+    path = Path("/tmp/sinopia-cursor-rotate.xbm")
+    path.write_text(_xbm("rotate", bits, SIZE // 2, SIZE // 2), encoding="ascii")
+    return f"@{path} black"
+
+
+def _draw_rotate(grid: list[list[str]]) -> None:
+    cx = cy = SIZE // 2
+    radius = 8
+    for step in range(18):
+        degrees = 210 + step * 8
+        rad = math.radians(degrees)
+        x = round(cx + radius * math.cos(rad))
+        y = round(cy + radius * math.sin(rad))
+        _plot(grid, x, y)
+        _plot(grid, x + 1, y)
+    _arrow_head(grid, cx, cy, radius, 210, inward=False)
+    _arrow_head(grid, cx, cy, radius, 210 + 17 * 8, inward=True)
+
+
+def _arrow_head(grid: list[list[str]], cx: int, cy: int, radius: int, degrees: float, inward: bool) -> None:
+    rad = math.radians(degrees)
+    tip_x = round(cx + radius * math.cos(rad))
+    tip_y = round(cy + radius * math.sin(rad))
+    direction = -1 if inward else 1
+    tangent = rad + direction * math.pi / 2
+    left = tangent + 0.6
+    right = tangent - 0.6
+    for angle in (left, right):
+        for step in range(1, 5):
+            _plot(grid, round(tip_x + step * math.cos(angle)), round(tip_y + step * math.sin(angle)))
 
 
 def tool_cursor(name: str) -> str:

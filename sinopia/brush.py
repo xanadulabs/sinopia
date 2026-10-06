@@ -78,8 +78,14 @@ def dab(
     opacity: int,
     origin: bytes,
     coverage: bytearray,
+    clip: tuple[int, int, int, int] | None = None,
+    place: tuple[int, int] = (0, 0),
 ) -> None:
-    """Add one dab. Coverage builds up to `opacity` and does not pass it."""
+    """Add one dab. Coverage builds up to `opacity` and does not pass it.
+
+    `clip` is a document rectangle the paint must stay inside. `place` is the
+    layer's document origin, so a dab pixel can be tested against that rectangle.
+    """
     flow_byte = _percent(flow)
     cap = _percent(opacity)
     if flow_byte == 0 or cap == 0 or not offsets:
@@ -93,6 +99,11 @@ def dab(
         py = y + dy
         if not (0 <= px < width and 0 <= py < height):
             continue
+        if clip is not None:
+            doc_x = place[0] + px
+            doc_y = place[1] + py
+            if not (clip[0] <= doc_x < clip[2] and clip[1] <= doc_y < clip[3]):
+                continue
         index = py * width + px
         add = tip * flow_byte // 255
         if add == 0:

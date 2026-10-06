@@ -21,6 +21,12 @@ class Stage:
         self.hardness = 100
         self.opacity = 100
         self.flow = 100
+        self.erase = False
+        self.clip: tuple[int, int, int, int] | None = None
+        self.brush_mark: tuple[int, int] | None = None
+        self.turn = 0.0
+        self._pivot: tuple[float, float] | None = None
+        self._pivot_custom = False
         self._press: tuple[int, int, int, int] | None = None
         self._stroke: tuple[int, int] | None = None
         self._walk: tuple[int, int] | None = None
@@ -53,6 +59,9 @@ class Stage:
         self._stroke = None
         self._walk = None
         self._paint = None
+        self._pivot = None
+        self._pivot_custom = False
+        self.turn = 0.0
         self._transform = None
         self._box = None
         self.picture = flatten(self.document)
@@ -113,6 +122,14 @@ class Stage:
         self._stroke = None
         self._walk = None
         self._paint = None
+        self.brush_mark = (x, y)
+
+    def brush_line(self, start: tuple[int, int], end: tuple[int, int]) -> None:
+        """One straight stroke from the last dab to this point. Shift-click does this."""
+        self.brush_press(*start)
+        if self._stroke is None:
+            return
+        self._brush_to(*end)
 
     def _brush_to(self, x: int, y: int, restack: bool = True) -> None:
         if self._stroke is None:
@@ -156,7 +173,10 @@ class Stage:
             return
         local_x, local_y = self.layer_point(x, y)
         origin, coverage = self._paint
-        dab(image, local_x, local_y, self.color, offsets, self.flow, self.opacity, origin, coverage)
+        ink = (0, 0, 0, 0) if self.erase else self.color
+        group_x, group_y = parent_offset(self.document, self.target)
+        place = (self.target.x + group_x, self.target.y + group_y)
+        dab(image, local_x, local_y, ink, offsets, self.flow, self.opacity, origin, coverage, self.clip, place)
 
     def content_box(self) -> tuple[int, int, int, int] | None:
         """Exclusive document box around the layer's opaque pixels. None for a group or an empty layer."""
@@ -173,6 +193,18 @@ class Stage:
         origin_y = self.target.y + group_y
         return (left + origin_x, top + origin_y, right + origin_x + 1, bottom + origin_y + 1)
 
+    def pivot_point(self) -> tuple[float, float]:
+        """Where a turn spins. The center of the box, unless that cross has been dragged."""
+        if self._transform is not None and "pivot" in self._transform and self._transform["handle"] == "rotate":
+            return self._transform["pivot"]
+        if self._pivot_custom and self._pivot is not None:
+            return self._pivot
+        box = self.content_box()
+        if box is None:
+            return (0.0, 0.0)
+        left, top, right, bottom = box
+        return ((left + right) / 2, (top + bottom) / 2)
+
     def transform_press(self, handle: str, x: int, y: int) -> None:
         if not isinstance(self.target, Layer):
             self._transform = None
@@ -182,6 +214,10 @@ class Stage:
             return
         image = self.target.image
         group_x, group_y = parent_offset(self.document, self.target)
+        pivot = self._pivot if self._pivot_custom and self._pivot is not None else (
+            (box[0] + box[2]) / 2,
+            (box[1] + box[3]) / 2,
+        )
         self._transform = {
             "handle": handle,
             "press": (x, y),
@@ -190,20 +226,37 @@ class Stage:
             "mask": None if self.target.mask is None else bytes(self.target.mask),
             "origin": (self.target.x, self.target.y),
             "offset": (self.target.x + group_x, self.target.y + group_y),
+            "pivot": pivot,
+            "pivot_at_press": pivot,
+            "pivot_was": self._pivot,
+            "pivot_custom_was": self._pivot_custom,
         }
+        self.turn = 0.0
 
     def transform_drag(self, x: int, y: int, constrain: bool = False) -> None:
-        """Scale from the opposite corner, or move the layer when the pointer started inside."""
+        """Scale from the opposite corner, move from inside, or turn around the cross."""
         if self._transform is None or not isinstance(self.target, Layer):
             return
         handle = self._transform["handle"]
         press_x, press_y = self._transform["press"]
         left, top, right, bottom = self._transform["box"]
+        if handle == "pivot":
+            base_x, base_y = self._transform["pivot_at_press"]
+            self._pivot = (base_x + (x - press_x), base_y + (y - press_y))
+            self._pivot_custom = True
+            return
         if handle == "move":
             origin_x, origin_y = self._transform["origin"]
             self.target.x = origin_x + (x - press_x)
             self.target.y = origin_y + (y - press_y)
             self._box = (left + (x - press_x), top + (y - press_y), right + (x - press_x), bottom + (y - press_y))
+            return
+        if handle == "rotate":
+            turn = _turn_degrees(self._transform["pivot"], self._transform["press"], (x, y))
+            if constrain:
+                turn = round(turn / 15) * 15
+            self.turn = turn
+            self._resample_rotated(turn)
             return
         dx = x - press_x
         dy = y - press_y
@@ -233,12 +286,47 @@ class Stage:
         self._box = (new_left, new_top, new_right, new_bottom)
         self._resample_box(new_left, new_top, new_right, new_bottom)
 
-    def transform_release(self, x: int, y: int, constrain: bool = False) -> None:
+    def transform_release(self, x: int, y: int, constrain: bool = False) -> float | None:
+        """Finish the gesture. A turn returns its clockwise degrees."""
         if self._transform is None:
-            return
+            return None
+        handle = self._transform["handle"]
         self.transform_drag(x, y, constrain)
+        angle = self.turn if handle == "rotate" else None
         self._transform = None
         self._box = None
+        self.turn = 0.0
+        self._restack()
+        return angle
+
+    def transform_cancel(self) -> None:
+        """Put the layer back. Escape does this before the gesture is kept."""
+        gesture = self._transform
+        self._transform = None
+        self._box = None
+        self.turn = 0.0
+        if gesture is None or not isinstance(self.target, Layer):
+            return
+        self.target.image.pixels[:] = gesture["pixels"]
+        if gesture["mask"] is not None and self.target.mask is not None:
+            self.target.mask[:] = gesture["mask"]
+        self.target.x, self.target.y = gesture["origin"]
+        self._pivot = gesture["pivot_was"]
+        self._pivot_custom = gesture["pivot_custom_was"]
+        self._restack()
+
+    def rotate_by(self, degrees: float) -> None:
+        """Turn the layer by `degrees` around the cross. Positive is clockwise."""
+        if not isinstance(self.target, Layer) or abs(degrees) < 1e-6 or self.content_box() is None:
+            return
+        self.transform_press("rotate", 0, 0)
+        if self._transform is None:
+            return
+        self.turn = degrees
+        self._resample_rotated(degrees)
+        self._transform = None
+        self._box = None
+        self.turn = 0.0
         self._restack()
 
     def _resample_box(self, left: int, top: int, right: int, bottom: int) -> None:
@@ -275,6 +363,75 @@ class Stage:
         image.pixels[:] = out
         if mask_out is not None and self.target.mask is not None:
             self.target.mask[:] = mask_out
+
+    def _resample_rotated(self, degrees: float) -> None:
+        """Rewrite the layer from the snapshot, turned clockwise around the cross."""
+        gesture = self._transform
+        if gesture is None or not isinstance(self.target, Layer):
+            return
+        src_left, src_top, src_right, src_bottom = gesture["box"]
+        pivot_x, pivot_y = gesture["pivot"]
+        offset_x, offset_y = gesture["offset"]
+        src_pixels = gesture["pixels"]
+        src_mask = gesture["mask"]
+        image = self.target.image
+        width, height = image.width, image.height
+        radians = math.radians(degrees)
+        cos = math.cos(radians)
+        sin = math.sin(radians)
+        corners = (
+            (src_left, src_top),
+            (src_right, src_top),
+            (src_right, src_bottom),
+            (src_left, src_bottom),
+        )
+        turned = [_spin(x, y, pivot_x, pivot_y, cos, sin) for x, y in corners]
+        min_x = max(offset_x, math.floor(min(point[0] for point in turned)))
+        max_x = min(offset_x + width, math.ceil(max(point[0] for point in turned)))
+        min_y = max(offset_y, math.floor(min(point[1] for point in turned)))
+        max_y = min(offset_y + height, math.ceil(max(point[1] for point in turned)))
+        out = bytearray(width * height * 4)
+        mask_out = bytearray(width * height) if src_mask is not None else None
+        bound_left, bound_top = width, height
+        bound_right = bound_bottom = -1
+        for py in range(min_y, max_y):
+            for px in range(min_x, max_x):
+                dx = px + 0.5 - pivot_x
+                dy = py + 0.5 - pivot_y
+                sx = pivot_x + dx * cos + dy * sin
+                sy = pivot_y - dx * sin + dy * cos
+                if not (src_left <= sx < src_right and src_top <= sy < src_bottom):
+                    continue
+                sample_x = int(sx) - offset_x
+                sample_y = int(sy) - offset_y
+                local_x = px - offset_x
+                local_y = py - offset_y
+                if not (0 <= sample_x < width and 0 <= sample_y < height):
+                    continue
+                if not (0 <= local_x < width and 0 <= local_y < height):
+                    continue
+                si = (sample_y * width + sample_x) * 4
+                if src_pixels[si + 3] == 0:
+                    continue
+                di = (local_y * width + local_x) * 4
+                out[di : di + 4] = src_pixels[si : si + 4]
+                if mask_out is not None and src_mask is not None:
+                    mask_out[local_y * width + local_x] = src_mask[sample_y * width + sample_x]
+                if px < bound_left:
+                    bound_left = px
+                if py < bound_top:
+                    bound_top = py
+                if px > bound_right:
+                    bound_right = px
+                if py > bound_bottom:
+                    bound_bottom = py
+        image.pixels[:] = out
+        if mask_out is not None and self.target.mask is not None:
+            self.target.mask[:] = mask_out
+        if bound_right < 0:
+            self._box = None
+        else:
+            self._box = (bound_left, bound_top, bound_right + 1, bound_bottom + 1)
 
     def _restack(self) -> None:
         self.picture = flatten(self.document)
@@ -336,6 +493,27 @@ def _opaque_bounds(image: Image) -> tuple[int, int, int, int] | None:
     if right < 0:
         return None
     return left, top, right, bottom
+
+
+def _turn_degrees(pivot: tuple[float, float], start: tuple[int, int], point: tuple[int, int]) -> float:
+    """How far `point` has swung around `pivot` from `start`, in clockwise degrees."""
+    px, py = pivot
+    start_x, start_y = start
+    point_x, point_y = point
+    before = math.atan2(start_y - py, start_x - px)
+    after = math.atan2(point_y - py, point_x - px)
+    delta = math.degrees(after - before)
+    while delta > 180:
+        delta -= 360
+    while delta < -180:
+        delta += 360
+    return delta
+
+
+def _spin(x: float, y: float, pivot_x: float, pivot_y: float, cos: float, sin: float) -> tuple[float, float]:
+    dx = x - pivot_x
+    dy = y - pivot_y
+    return (pivot_x + dx * cos - dy * sin, pivot_y + dx * sin + dy * cos)
 
 
 def _uniform(

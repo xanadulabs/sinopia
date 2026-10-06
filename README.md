@@ -6,14 +6,14 @@ The picture you keep is a folder of PNGs plus `stack.txt`. PSD, PNG, and JPEG ar
 
 Sinopia is by Will Hinds. Copyright 2026 Will Hinds, under the Apache License, Version 2.0. The mark is two rounded tiles, plaster behind sinopia. `sinopia.png` is that drawing, for a desktop shortcut.
 
-What it does now: layers and groups, masks, a drop shadow, a brush with diameter, hardness, opacity, and flow, type, transform, marquee, zoom, undo, canvas size, and PNG or JPEG open and save. The window shows the same pixels the compositor writes. Still ahead: the healing brush, PSD export, and smart objects.
+What it does now: layers and groups, masks, a drop shadow, a brush with diameter, hardness, opacity, flow, color, and erase, type, transform with rotate, marquee, zoom, undo, canvas size, and PNG or JPEG open and save. The window shows the same pixels the compositor writes. Still ahead: the healing brush, PSD export, and smart objects.
 
 ## Milestones
 
 1. **Composite.** Done. A headless Normal blend of layers and masks, written to a PNG.
 2. **Folder document.** Done. `stack.txt` plus one PNG per layer and mask. Loading the folder matches the proof.
 3. **Window.** Done. The window shows the composite. Drag the picture to move the top layer.
-4. **Brush.** Done. Press `b` and drag to paint the top layer. The top bar sets diameter, hardness, opacity, and flow. Press `v` to drag that layer again. The mask is not painted.
+4. **Brush.** Done. Press `b` and drag to paint the top layer. The top bar sets diameter, hardness, opacity, flow, and color. `e` erases. Press `v` to drag that layer again. The mask is not painted.
 5. **Type and layer styles.** Type is on the canvas: press `t`, click, type, and press Enter to keep the letters. The top bar sets the font, the size in px or pt, bold, italic, strike, underline, kerning, and stroke. The built-in face is Sinopia. Other names are fontconfig families drawn by Pango; Enter bakes the pixels into the layer PNG, which stays the file you keep. The first layer style is a drop shadow, stored on the layer as `shadow dx dy`.
 6. **Healing brush.**
 7. **PSD, PNG, and JPEG export.** PNG and JPEG open and save from the File menu. The folder stays the file we keep. PSD is still ahead.
@@ -64,15 +64,15 @@ The tools sit in a column on the left. Each button keeps its shortcut letter in 
 | `m` | Marquee | Drag a rectangle. Shift keeps it square. |
 | `v` | Move | Drag the selected layer. |
 | `z` | Zoom | Click to zoom in. Alt-click to zoom out. |
-| `b` | Brush | Drag to paint the selected layer. The mask is left alone. `[` and `]` change the diameter. |
+| `b` | Brush | Drag to paint the selected layer in the chosen color. The mask is left alone. `[` and `]` change the diameter. Alt-click picks a color. Shift-click draws a straight stroke from the last dab. Paint stays inside the marquee. |
 | `t` | Type | Click, type, Enter keeps the letters, Escape drops them. |
-| `f` | Transform | Drag a corner, an edge, or the inside of the box. |
+| `f` | Transform | Drag a corner or an edge to scale. Drag just outside a corner to turn. Drag the cross to move the center it turns around. Drag inside the box to move. |
 
 Click the picture and the top layer that covers that spot becomes the selection, even when a higher layer is transparent there. That row stays highlighted.
 
-With the brush selected, the top bar sets the diameter (1 to 500), the hardness, the opacity, and the flow. Hardness is the feather of the edge: 100 is solid, 0 fades from the middle to the rim. Flow is how much ink each dab lays down, and opacity is the cap for that stroke, so scrubbing builds up and then stops. The dabs sit a quarter of the diameter apart. Those settings are the tool, not the picture: the folder keeps the pixels. With type selected, it sets the font, the size in px or pt, bold, italic, strike, underline, kerning, and stroke. The built-in face is Sinopia. Other names are fontconfig families drawn by Pango. Enter bakes the letters into the layer PNG, so the picture does not need that font later.
+With the brush selected, the top bar sets the diameter (1 to 500), the hardness, the opacity, the flow, and the color. Hardness is the feather of the edge: 100 is solid, 0 fades from the middle to the rim. Flow is how much ink each dab lays down, and opacity is the cap for that stroke, so scrubbing builds up and then stops. The dabs sit a quarter of the diameter apart. Color opens the swatch; Alt-click picks the color under the pointer. Erase, or `e`, lifts paint instead. `b` goes back to painting. Shift-click draws a straight stroke from the last dab. A marquee keeps the paint inside it. Those settings are the tool, not the picture: the folder keeps the pixels. With type selected, it sets the font, the size in px or pt, bold, italic, strike, underline, kerning, and stroke. Type uses the same color as the brush. The built-in face is Sinopia. Other names are fontconfig families drawn by Pango. Enter bakes the letters into the layer PNG, so the picture does not need that font later.
 
-Transform draws a box around the layer. Drag a corner and the opposite corner stays put. Drag an edge to scale one side. Drag inside the box to move the layer. Shift on a corner keeps the proportions.
+Transform draws a box around the layer, with a cross at the center. Drag a corner and the opposite corner stays put. Drag an edge to scale one side. Drag inside the box to move the layer. Shift on a corner keeps the proportions. Just outside a corner the pointer becomes a curved arrow: dragging there turns the layer around the cross, and Shift snaps that turn to 15 degrees. Drag the cross to move the center. The angle box is how far the layer turned; change the number to turn it further. Escape puts the gesture back before it is kept.
 
 ### Layers
 
@@ -107,6 +107,7 @@ These match Photoshop 7 where the feature exists here.
 | Select All | Ctrl+A |
 | Deselect | Ctrl+D |
 | Free Transform | Ctrl+T, and `f` |
+| Turn, cancel | Drag outside a corner. Escape puts the gesture back. |
 | New Layer | Ctrl+Shift+N |
 | Group | Ctrl+G |
 | Zoom In | Ctrl++ , and `+` |
@@ -114,3 +115,5 @@ These match Photoshop 7 where the feature exists here.
 | Fit on Screen | Ctrl+0 |
 | Actual Pixels | Ctrl+Alt+0 |
 | Brush smaller, larger | `[` `]` |
+| Erase | `e` |
+| Brush again | `b` |

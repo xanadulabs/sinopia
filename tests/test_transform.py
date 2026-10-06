@@ -58,6 +58,36 @@ class TransformTest(unittest.TestCase):
         stage.transform_release(4, 3, constrain=True)
         self.assertEqual(stage.content_box(), (0, 0, 4, 4))
 
+    def test_a_turn_spins_around_the_cross(self):
+        image = Image(8, 8)
+        image.set(1, 1, RED)
+        stage = Stage(Document(8, 8, [Layer("red", image)]))
+        stage._pivot = (2, 2)
+        stage._pivot_custom = True
+        stage.rotate_by(180)
+        self.assertEqual(image.get(1, 1)[3], 0)
+        self.assertEqual(image.get(2, 2), RED)
+
+    def test_a_quarter_turn_swaps_the_sides(self):
+        image = Image(8, 8)
+        for y in range(3, 5):
+            for x in range(2, 6):
+                image.set(x, y, RED)
+        stage = Stage(Document(8, 8, [Layer("red", image)]))
+        stage.rotate_by(90)
+        left, top, right, bottom = stage.content_box()
+        self.assertGreater(bottom - top, right - left)
+
+    def test_escape_puts_the_pixels_back(self):
+        image = _block()
+        stage = Stage(Document(4, 4, [Layer("red", image)]))
+        before = bytes(image.pixels)
+        stage.transform_press("se", 2, 2)
+        stage.transform_drag(4, 4)
+        stage.transform_cancel()
+        self.assertEqual(bytes(image.pixels), before)
+        self.assertEqual(stage.content_box(), (0, 0, 2, 2))
+
 
 @unittest.skipUnless(os.environ.get("DISPLAY"), "no display")
 class TransformHandlesTest(unittest.TestCase):
@@ -71,5 +101,7 @@ class TransformHandlesTest(unittest.TestCase):
             window.root.update()
             self.assertEqual(window.photo.get(4, 4), (255, 255, 255))
             self.assertEqual(window._hit_handle(0, 0), "nw")
+            self.assertEqual(window._transform_handle(-30, -30), "rotate")
+            self.assertTrue(window._hit_pivot(48, 48))
         finally:
             window.root.destroy()

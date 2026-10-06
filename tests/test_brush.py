@@ -140,6 +140,43 @@ class BrushTest(unittest.TestCase):
         for x in range(4, 11):
             self.assertEqual(image.get(x, 2), BLACK, x)
 
+    def test_the_brush_paints_in_the_chosen_color(self):
+        image = Image(1, 1, GREEN)
+        stage = Stage(Document(1, 1, [Layer("green", image)]))
+        stage.radius = 0
+        stage.color = RED
+        stage.brush_press(0, 0)
+        stage.brush_release(0, 0)
+        self.assertEqual(image.get(0, 0), RED)
+
+    def test_erase_lifts_the_pixel(self):
+        image = Image(1, 1, GREEN)
+        stage = Stage(Document(1, 1, [Layer("green", image)]))
+        stage.radius = 0
+        stage.erase = True
+        stage.brush_press(0, 0)
+        stage.brush_release(0, 0)
+        self.assertEqual(image.get(0, 0)[3], 0)
+
+    def test_paint_stays_inside_the_marquee(self):
+        image = Image(3, 1, GREEN)
+        stage = Stage(Document(3, 1, [Layer("green", image)]))
+        stage.diameter = 5
+        stage.clip = (0, 0, 1, 1)
+        stage.brush_press(0, 0)
+        stage.brush_release(0, 0)
+        self.assertEqual(image.get(0, 0), BLACK)
+        self.assertEqual(image.get(1, 0), GREEN)
+        self.assertEqual(image.get(2, 0), GREEN)
+
+    def test_shift_click_draws_a_straight_stroke(self):
+        image = Image(4, 1, GREEN)
+        stage = Stage(Document(4, 1, [Layer("green", image)]))
+        stage.radius = 0
+        stage.brush_line((0, 0), (3, 0))
+        for x in range(4):
+            self.assertEqual(image.get(x, 0), BLACK)
+
 
 @unittest.skipUnless(os.environ.get("DISPLAY"), "no display")
 class BrushWindowTest(unittest.TestCase):

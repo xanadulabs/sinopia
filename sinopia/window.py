@@ -29,7 +29,7 @@ from sinopia.clipboard import clipboard_picture, publish_image
 from sinopia.mark import ABOUT_ZOOM, icon_images, photo as mark_photo
 from sinopia.exchange import layer_name, read_picture, write_picture
 from sinopia.history import History
-from sinopia.icons import tool_cursor, tool_image
+from sinopia.icons import rotate_cursor, tool_cursor, tool_image
 from sinopia.image import Image
 from sinopia.picker import choose_canvas, choose_picture, choose_size
 from sinopia.select import copied_image, copy_pixels, crop, marquee_box
@@ -701,9 +701,7 @@ class Window:
         elif self.tool == "brush":
             self._brush_options()
         elif self.tool == "transform":
-            tkinter.Label(self.options, text="Drag a corner to scale. Drag inside the box to move.", bg=RAIL).pack(
-                side="left", padx=6, pady=4
-            )
+            self._transform_options()
         elif self.tool == "zoom":
             tkinter.Label(self.options, text="Click to zoom in. Alt-click to zoom out.", bg=RAIL).pack(
                 side="left", padx=6, pady=4
@@ -728,6 +726,25 @@ class Window:
         self._brush_field("Hardness", self._hardness_var, 0, 100)
         self._brush_field("Opacity", self._opacity_var, 0, 100)
         self._brush_field("Flow", self._flow_var, 0, 100)
+        self._color_chip = tkinter.Button(
+            self.options,
+            text="",
+            width=2,
+            bg=_hex(self.stage.color),
+            activebackground=_hex(self.stage.color),
+            command=self._choose_color,
+        )
+        self._color_chip.pack(side="left", padx=(10, 2), pady=4)
+        tkinter.Label(self.options, text="Color", bg=RAIL).pack(side="left", padx=(0, 6))
+        self._erase_var = tkinter.IntVar(value=1 if self.stage.erase else 0)
+        tkinter.Checkbutton(
+            self.options,
+            text="Erase",
+            variable=self._erase_var,
+            bg=RAIL,
+            activebackground=RAIL,
+            command=self._apply_brush,
+        ).pack(side="left", padx=(0, 4))
 
     def _brush_field(self, label: str, variable: tkinter.IntVar, low: int, high: int) -> None:
         tkinter.Label(self.options, text=label, bg=RAIL).pack(side="left", padx=(8, 2), pady=4)
@@ -752,14 +769,101 @@ class Window:
             self.stage.hardness = _boxed(self._hardness_var.get(), 0, 100)
             self.stage.opacity = _boxed(self._opacity_var.get(), 0, 100)
             self.stage.flow = _boxed(self._flow_var.get(), 0, 100)
+            self.stage.erase = bool(self._erase_var.get())
             self._diameter_var.set(self.stage.diameter)
             self._hardness_var.set(self.stage.hardness)
             self._opacity_var.set(self.stage.opacity)
             self._flow_var.set(self.stage.flow)
+            self._paint_chip()
         except (tkinter.TclError, ValueError, AttributeError):
             return
         finally:
             self._brush_applying = False
+
+    def _paint_chip(self) -> None:
+        chip = getattr(self, "_color_chip", None)
+        if chip is None or not chip.winfo_exists():
+            return
+        chip.configure(bg=_hex(self.stage.color), activebackground=_hex(self.stage.color))
+
+    def _choose_color(self) -> None:
+        import tkinter.colorchooser
+
+        _rgb, hex_color = tkinter.colorchooser.askcolor(color=_hex(self.stage.color), parent=self.root)
+        if _rgb is None:
+            return
+        red, green, blue = _rgb
+        self.stage.color = (int(red), int(green), int(blue), 255)
+        self.stage.erase = False
+        if getattr(self, "_erase_var", None) is not None:
+            self._erase_var.set(0)
+        self._paint_chip()
+
+    def _sample_color(self, x: int, y: int) -> None:
+        if not (0 <= x < self.stage.picture.width and 0 <= y < self.stage.picture.height):
+            return
+        red, green, blue, alpha = self.stage.picture.get(x, y)
+        if alpha == 0:
+            return
+        self.stage.color = (red, green, blue, 255)
+        self.stage.erase = False
+        if getattr(self, "_erase_var", None) is not None:
+            self._erase_var.set(0)
+        self._paint_chip()
+
+    def _transform_options(self) -> None:
+        tkinter.Label(self.options, text="Angle", bg=RAIL).pack(side="left", padx=(6, 2), pady=4)
+        self._angle_var = tkinter.IntVar(value=getattr(self, "_applied_angle", 0))
+        spin = tkinter.Spinbox(
+            self.options,
+            from_=-180,
+            to=180,
+            width=5,
+            textvariable=self._angle_var,
+            command=self._apply_angle,
+        )
+        spin.pack(side="left", pady=4)
+        spin.bind("<Return>", self._apply_angle)
+        spin.bind("<FocusOut>", self._apply_angle)
+        spin.bind("<Escape>", self._escape_transform)
+        tkinter.Label(
+            self.options,
+            text="Outside a corner turns. Shift snaps to 15°. Escape puts it back.",
+            bg=RAIL,
+        ).pack(side="left", padx=6)
+
+    def _apply_angle(self, _event=None) -> None:
+        if getattr(self, "_angle_lock", False) or getattr(self, "_angle_var", None) is None:
+            return
+        try:
+            shown = int(float(self._angle_var.get()))
+        except (tkinter.TclError, ValueError):
+            return
+        delta = shown - getattr(self, "_applied_angle", 0)
+        self._applied_angle = shown
+        if delta == 0:
+            return
+        self.stage.rotate_by(delta)
+        self._commit("Transform")
+        self._paint()
+
+    def _remember_angle(self, degrees: float) -> None:
+        if getattr(self, "_angle_var", None) is None:
+            return
+        shown = int(round(degrees))
+        self._angle_lock = True
+        try:
+            self._angle_var.set(shown)
+            self._applied_angle = shown
+        finally:
+            self._angle_lock = False
+
+    def _escape_transform(self, _event=None):
+        if self.stage._transform is not None:
+            self.stage.transform_cancel()
+        self._remember_angle(0)
+        self._paint()
+        return "break"
 
     def _type_options(self) -> None:
         style = self.stage.lettering.style
@@ -845,6 +949,11 @@ class Window:
             return
         if getattr(event, "state", 0) & 0x4:
             return
+        focus = self.root.focus_get()
+        if isinstance(focus, (tkinter.Spinbox, tkinter.Entry)):
+            if getattr(event, "keysym", "") == "Escape" and self.tool == "transform":
+                return self._escape_transform()
+            return
         if self.stage.lettering.active:
             key = getattr(event, "keysym", "")
             if key == "Return":
@@ -859,7 +968,13 @@ class Window:
             self._title()
             self._paint()
             return
+        if getattr(event, "keysym", "") == "Escape" and self.tool == "transform":
+            return self._escape_transform()
         if event.char in ("b", "B"):
+            self.stage.erase = False
+            self.set_tool("brush")
+        elif event.char in ("e", "E"):
+            self.stage.erase = True
             self.set_tool("brush")
         elif event.char in ("v", "V"):
             self.set_tool("move")
@@ -896,7 +1011,8 @@ class Window:
     def _over_picture(self, event):
         x = int(self.view.canvasx(event.x)) - self._origin_x
         y = int(self.view.canvasy(event.y)) - self._origin_y
-        if not (0 <= x < self.photo.width() and 0 <= y < self.photo.height()):
+        margin = 48 if self.tool == "transform" else 0
+        if not (-margin <= x < self.photo.width() + margin and -margin <= y < self.photo.height() + margin):
             return None
         return _Pointer(x, y, getattr(event, "state", 0))
 
@@ -937,7 +1053,14 @@ class Window:
             self.marquee = None
             self._paint()
         elif self.tool == "brush":
-            self.stage.brush_press(x, y)
+            if _alt(event):
+                self._sample_color(x, y)
+            else:
+                self.stage.clip = self.marquee
+                if _shifted(event) and self.stage.brush_mark is not None:
+                    self.stage.brush_line(self.stage.brush_mark, (x, y))
+                else:
+                    self.stage.brush_press(x, y)
             self._paint()
         elif self.tool == "type":
             if self.stage.lettering.active:
@@ -947,9 +1070,7 @@ class Window:
             self._title()
             self._paint()
         elif self.tool == "transform":
-            handle = self._hit_handle(event.x, event.y)
-            if handle is None and self._inside_box(event.x, event.y):
-                handle = "move"
+            handle = self._transform_handle(event.x, event.y)
             if handle is not None:
                 self.stage.transform_press(handle, x, y)
         else:
@@ -965,11 +1086,14 @@ class Window:
             self._schedule()
             return
         if self.tool == "brush":
-            self.stage.brush_drag(x, y)
+            if not _alt(event):
+                self.stage.brush_drag(x, y)
         elif self.tool == "move":
             self.stage.shift(x, y)
         elif self.tool == "transform":
             self.stage.transform_drag(x, y, _shifted(event))
+            if self.stage._transform is not None and self.stage._transform.get("handle") == "rotate":
+                self._remember_angle(self.stage.turn)
         else:
             return
         self._schedule()
@@ -989,13 +1113,16 @@ class Window:
             self._paint_after = None
         x, y = self._doc(event)
         if self.tool == "brush":
-            self.stage.brush_release(x, y)
-            self._commit("Brush")
+            if not _alt(event):
+                self.stage.brush_release(x, y)
+                self._commit("Brush")
         elif self.tool == "move":
             self.stage.release(x, y)
             self._commit("Move")
         elif self.tool == "transform":
-            self.stage.transform_release(x, y, _shifted(event))
+            angle = self.stage.transform_release(x, y, _shifted(event))
+            if angle is not None:
+                self._remember_angle(angle)
             self._commit("Transform")
         elif self.tool == "zoom":
             alt = bool(getattr(event, "state", 0) & 0x8)
@@ -1058,6 +1185,31 @@ class Window:
                 return name
         return None
 
+    def _hit_turn(self, x: int, y: int) -> bool:
+        """Just outside a corner. That is where Photoshop turns the box."""
+        box = self._box_screen()
+        if box is None:
+            return False
+        left, top, right, bottom = box
+        if left < x < right and top < y < bottom:
+            return False
+        nearest = 48 * 48
+        for cx, cy in ((left, top), (right, top), (right, bottom), (left, bottom)):
+            distance = (x - cx) ** 2 + (y - cy) ** 2
+            if distance < nearest:
+                nearest = distance
+        return nearest < 48 * 48
+
+    def _hit_pivot(self, x: int, y: int) -> bool:
+        if self.stage.content_box() is None:
+            return False
+        px, py = self._pivot_screen()
+        return abs(x - px) <= 8 and abs(y - py) <= 8
+
+    def _pivot_screen(self) -> tuple[int, int]:
+        point_x, point_y = self.stage.pivot_point()
+        return int(point_x * self.scale), int(point_y * self.scale)
+
     def _inside_box(self, x: int, y: int) -> bool:
         box = self._box_screen()
         if box is None:
@@ -1068,9 +1220,7 @@ class Window:
     def _hover(self, event) -> None:
         if self.tool != "transform" or self.stage._transform is not None:
             return
-        handle = self._hit_handle(event.x, event.y)
-        if handle is None and self._inside_box(event.x, event.y):
-            handle = "move"
+        handle = self._transform_handle(event.x, event.y)
         cursors = {
             "nw": "top_left_corner",
             "se": "bottom_right_corner",
@@ -1081,8 +1231,27 @@ class Window:
             "e": "right_side",
             "w": "left_side",
             "move": "fleur",
+            "pivot": "fleur",
+            "rotate": self._turn_cursor(),
         }
         self.label.configure(cursor=cursors.get(handle) or tool_cursor("transform"))
+
+    def _turn_cursor(self) -> str:
+        if getattr(self, "_rotate_cursor", None) is None:
+            self._rotate_cursor = rotate_cursor()
+        return self._rotate_cursor
+
+    def _transform_handle(self, x: int, y: int) -> str | None:
+        if self._hit_pivot(x, y):
+            return "pivot"
+        handle = self._hit_handle(x, y)
+        if handle is not None:
+            return handle
+        if self._hit_turn(x, y):
+            return "rotate"
+        if self._inside_box(x, y):
+            return "move"
+        return None
 
     def _draw_handles(self) -> None:
         box = self._box_screen()
@@ -1092,6 +1261,16 @@ class Window:
         self._frame(left, top, right, bottom)
         for name, (x, y) in self._handle_points().items():
             self._knob(x, y, 15 if len(name) == 2 else 9)
+        self._draw_pivot()
+
+    def _draw_pivot(self) -> None:
+        px, py = self._pivot_screen()
+        for step in range(-6, 7):
+            self._mark(px + step, py, "#000000")
+            self._mark(px, py + step, "#000000")
+        for step in range(-4, 5):
+            self._mark(px + step, py, "#ffffff")
+            self._mark(px, py + step, "#ffffff")
 
     def _frame(self, left: int, top: int, right: int, bottom: int) -> None:
         for x in range(left, right):
@@ -1164,6 +1343,15 @@ def _named(document: Document, name: str) -> Layer | Group:
 
 def _shifted(event) -> bool:
     return bool(getattr(event, "state", 0) & 0x1)
+
+
+def _alt(event) -> bool:
+    return bool(getattr(event, "state", 0) & 0x8)
+
+
+def _hex(color: tuple[int, int, int, int]) -> str:
+    red, green, blue = color[:3]
+    return f"#{red:02x}{green:02x}{blue:02x}"
 
 
 def _boxed(value, low: int, high: int) -> int:
