@@ -23,6 +23,7 @@ from sinopia.document import (
 )
 from sinopia.proof import proof_document
 from sinopia.stage import Stage, ppm_bytes
+from sinopia.typeface import font_families
 
 FRAME = Path("/tmp/sinopia-frame.ppm")
 
@@ -42,6 +43,8 @@ class Window:
         self._pointer: tuple[int, int] | None = None
         self._paint_after: str | None = None
         self.root = tkinter.Tk()
+        self.options = tkinter.Frame(self.root, bg=RAIL)
+        self.options.pack(side="top", fill="x")
         body = tkinter.Frame(self.root, bg=RAIL)
         body.pack()
         rail = tkinter.Frame(body, bg=RAIL, padx=4, pady=4)
@@ -110,6 +113,7 @@ class Window:
         self.root.bind("<KeyPress>", self._key)
         self.root.bind("<Control-s>", self._save)
         self._mark_tools()
+        self._show_options()
         self._show_zoom()
         self._title()
         self._refresh_layers()
@@ -278,7 +282,104 @@ class Window:
             raise ValueError(f"unknown tool {tool}")
         self.tool = tool
         self._mark_tools()
+        self._show_options()
         self._title()
+
+    def _show_options(self) -> None:
+        for child in self.options.winfo_children():
+            child.destroy()
+        if self.tool == "type":
+            self._type_options()
+        elif self.tool == "brush":
+            self._brush_options()
+        else:
+            tkinter.Label(self.options, text="Move", bg=RAIL).pack(side="left", padx=6, pady=4)
+
+    def _brush_options(self) -> None:
+        tkinter.Label(self.options, text="Size", bg=RAIL).pack(side="left", padx=(6, 2), pady=4)
+        self._radius_var = tkinter.IntVar(value=self.stage.radius)
+        spin = tkinter.Spinbox(
+            self.options,
+            from_=0,
+            to=64,
+            width=4,
+            textvariable=self._radius_var,
+            command=self._apply_brush,
+        )
+        spin.pack(side="left", pady=4)
+        spin.bind("<Return>", self._apply_brush)
+        spin.bind("<FocusOut>", self._apply_brush)
+
+    def _apply_brush(self, _event=None) -> None:
+        try:
+            self.stage.radius = max(0, int(self._radius_var.get()))
+        except (tkinter.TclError, ValueError):
+            return
+
+    def _type_options(self) -> None:
+        style = self.stage.lettering.style
+        families = font_families()
+        if style.family not in families:
+            families.append(style.family)
+        tkinter.Label(self.options, text="Font", bg=RAIL).pack(side="left", padx=(6, 2))
+        self._font_var = tkinter.StringVar(value=style.family)
+        tkinter.OptionMenu(self.options, self._font_var, *families, command=self._apply_type).pack(side="left")
+        self._size_var = tkinter.IntVar(value=style.size)
+        size = tkinter.Spinbox(
+            self.options, from_=1, to=256, width=4, textvariable=self._size_var, command=self._apply_type
+        )
+        size.pack(side="left", padx=(6, 0))
+        size.bind("<Return>", self._apply_type)
+        size.bind("<FocusOut>", self._apply_type)
+        self._unit_var = tkinter.StringVar(value=style.unit)
+        tkinter.OptionMenu(self.options, self._unit_var, "px", "pt", command=self._apply_type).pack(side="left")
+        self._bold_var = tkinter.IntVar(value=int(style.bold))
+        self._italic_var = tkinter.IntVar(value=int(style.italic))
+        self._strike_var = tkinter.IntVar(value=int(style.strikethrough))
+        self._underline_var = tkinter.IntVar(value=int(style.underline))
+        for text, var in (
+            ("Bold", self._bold_var),
+            ("Italic", self._italic_var),
+            ("Strike", self._strike_var),
+            ("Underline", self._underline_var),
+        ):
+            tkinter.Checkbutton(self.options, text=text, variable=var, bg=RAIL, command=self._apply_type).pack(
+                side="left"
+            )
+        tkinter.Label(self.options, text="Kerning", bg=RAIL).pack(side="left", padx=(6, 2))
+        self._kerning_var = tkinter.IntVar(value=style.kerning)
+        kerning = tkinter.Spinbox(
+            self.options, from_=-32, to=64, width=4, textvariable=self._kerning_var, command=self._apply_type
+        )
+        kerning.pack(side="left")
+        kerning.bind("<Return>", self._apply_type)
+        kerning.bind("<FocusOut>", self._apply_type)
+        tkinter.Label(self.options, text="Stroke", bg=RAIL).pack(side="left", padx=(6, 2))
+        self._stroke_var = tkinter.IntVar(value=style.stroke)
+        stroke = tkinter.Spinbox(
+            self.options, from_=0, to=16, width=3, textvariable=self._stroke_var, command=self._apply_type
+        )
+        stroke.pack(side="left", padx=(0, 6))
+        stroke.bind("<Return>", self._apply_type)
+        stroke.bind("<FocusOut>", self._apply_type)
+
+    def _apply_type(self, _event=None) -> None:
+        style = self.stage.lettering.style
+        try:
+            style.family = self._font_var.get()
+            style.size = max(1, int(self._size_var.get()))
+            style.unit = self._unit_var.get()
+            style.bold = bool(self._bold_var.get())
+            style.italic = bool(self._italic_var.get())
+            style.strikethrough = bool(self._strike_var.get())
+            style.underline = bool(self._underline_var.get())
+            style.kerning = int(self._kerning_var.get())
+            style.stroke = max(0, int(self._stroke_var.get()))
+        except (tkinter.TclError, ValueError, AttributeError):
+            return
+        if self.stage.lettering.active:
+            self.stage.lettering.refresh()
+            self._paint()
 
     def _mark_tools(self) -> None:
         for name, button in self.buttons.items():
@@ -324,6 +425,7 @@ class Window:
         return event.x // self.scale, event.y // self.scale
 
     def _press(self, event) -> None:
+        self.root.focus_set()
         x, y = self._doc(event)
         self._pointer = (x, y)
         if self.tool == "brush":
