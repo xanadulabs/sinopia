@@ -2,7 +2,7 @@
 
 ![Two rounded tiles, plaster behind sinopia](sinopia.png)
 
-A lightweight, minimalist compositor for layered pictures. It keeps layers, masks, and a few tools, and leaves out a camera importer and the rest of a modern photo suite.
+A compositor that plays like an old friend. A few tools. Pictures that stay yours. No monthly bill, and no program too old to open a modern file.
 
 The picture you keep is a folder of PNGs plus `stack.txt`. PNG and JPEG are copies. If the program stops, the pictures are still files you can open.
 

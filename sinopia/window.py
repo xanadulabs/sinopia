@@ -408,8 +408,9 @@ class Window:
         tkinter.Label(
             words,
             text=(
-                "A lightweight, minimalist compositor for layered pictures. "
-                "Layers, masks, and a few tools.\n\n"
+                "A compositor that plays like an old friend. "
+                "A few tools. Pictures that stay yours. "
+                "No monthly bill, and no program too old to open a modern file.\n\n"
                 "The picture you keep is a folder of PNGs plus stack.txt. "
                 "PNG and JPEG are copies."
             ),
