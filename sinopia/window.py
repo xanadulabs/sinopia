@@ -26,7 +26,7 @@ from sinopia.document import (
 )
 from sinopia.canvas import resize_canvas
 from sinopia.clipboard import clipboard_picture, publish_image
-from sinopia.mark import ABOUT_ZOOM, photo as mark_photo
+from sinopia.mark import ABOUT_ZOOM, icon_images, photo as mark_photo
 from sinopia.exchange import layer_name, read_picture, write_picture
 from sinopia.history import History
 from sinopia.icons import tool_cursor, tool_image
@@ -67,7 +67,12 @@ class Window:
         self._pointer: tuple[int, int] | None = None
         self._paint_after: str | None = None
         self.root = tkinter.Tk()
-        self._icons = (mark_photo(self.root, 1), mark_photo(self.root, 2), mark_photo(self.root, 4))
+        small, medium, large = icon_images()
+        self._icons = (
+            mark_photo(self.root, image=large),
+            mark_photo(self.root, image=medium),
+            mark_photo(self.root, image=small),
+        )
         self.root.iconphoto(True, self._icons[2], self._icons[1], self._icons[0])
         self.history = History(stage.document)
         self._history_lock = False

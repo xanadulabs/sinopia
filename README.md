@@ -4,7 +4,7 @@ A lightweight, minimalist compositor. The aim is an early Photoshop: layers, mas
 
 The picture you keep is a folder of PNGs plus `stack.txt`. PSD, PNG, and JPEG are exports. If the program stops, the pictures are still files you can open.
 
-Sinopia is by Will Hinds. Copyright 2026 Will Hinds, under the Apache License, Version 2.0. The mark is a plaster fragment with a mother and child drawn in sinopia. That picture is the window icon, and `sinopia.png` is the same file for a desktop shortcut.
+Sinopia is by Will Hinds. Copyright 2026 Will Hinds, under the Apache License, Version 2.0. The mark is two rounded tiles, plaster behind sinopia. `sinopia.png` is that drawing, for a desktop shortcut.
 
 What it does now: layers and groups, masks, a drop shadow, a brush with diameter, hardness, opacity, and flow, type, transform, marquee, zoom, undo, canvas size, and PNG or JPEG open and save. The window shows the same pixels the compositor writes. Still ahead: the healing brush, PSD export, and smart objects.
 
@@ -13,7 +13,7 @@ What it does now: layers and groups, masks, a drop shadow, a brush with diameter
 1. **Composite.** Done. A headless Normal blend of layers and masks, written to a PNG.
 2. **Folder document.** Done. `stack.txt` plus one PNG per layer and mask. Loading the folder matches the proof.
 3. **Window.** Done. The window shows the composite. Drag the picture to move the top layer.
-4. **Brush.** Done. Press `b` and drag to paint the top layer. Press `v` to drag that layer again. The mask is not painted.
+4. **Brush.** Done. Press `b` and drag to paint the top layer. The top bar sets diameter, hardness, opacity, and flow. Press `v` to drag that layer again. The mask is not painted.
 5. **Type and layer styles.** Type is on the canvas: press `t`, click, type, and press Enter to keep the letters. The top bar sets the font, the size in px or pt, bold, italic, strike, underline, kerning, and stroke. The built-in face is Sinopia. Other names are fontconfig families drawn by Pango; Enter bakes the pixels into the layer PNG, which stays the file you keep. The first layer style is a drop shadow, stored on the layer as `shadow dx dy`.
 6. **Healing brush.**
 7. **PSD, PNG, and JPEG export.** PNG and JPEG open and save from the File menu. The folder stays the file we keep. PSD is still ahead.

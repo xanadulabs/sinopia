@@ -1,4 +1,4 @@
-"""The clay-tablet mark is the icon, the shortcut file, and the About picture."""
+"""The mark is the icon, the shortcut file, and the About picture."""
 
 import os
 import unittest
@@ -13,7 +13,7 @@ SHORTCUT = ROOT / "sinopia.png"
 
 
 class MarkTest(unittest.TestCase):
-    def test_the_shard_carries_a_sinopia_drawing(self):
+    def test_the_mark_keeps_the_sinopia_colors(self):
         image = tablet()
         colors = _colors(image)
         self.assertEqual(image.get(0, 0)[3], 0)
