@@ -26,7 +26,10 @@ class Stage:
     def select(self, node: Layer | Group) -> None:
         if node is self.target:
             return
-        if self.lettering.active:
+        self.retarget(node)
+
+    def retarget(self, node: Layer | Group) -> None:
+        if self.lettering.active and node is not self.target:
             self.lettering.cancel()
         self.target = node
         self._press = None

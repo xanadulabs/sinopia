@@ -14,6 +14,9 @@ from sinopia.document import (
     group_item,
     layer_rows,
     load,
+    place_above,
+    place_below,
+    place_into,
     save,
 )
 from sinopia.proof import proof_document
@@ -71,6 +74,12 @@ class Window:
         )
         self.layer_list.pack(fill="both", expand=True, padx=4, pady=4)
         self.layer_list.bind("<<ListboxSelect>>", self._choose_layer)
+        self.layer_list.bind("<ButtonPress-1>", self._layer_press)
+        self.layer_list.bind("<B1-Motion>", self._layer_motion)
+        self.layer_list.bind("<ButtonRelease-1>", self._layer_drop)
+        self._layer_src: int | None = None
+        self._layer_press_y: int | None = None
+        self._layer_dragged = False
         commands = tkinter.Frame(panel, bg=RAIL)
         commands.pack(fill="x", padx=4, pady=(0, 4))
         self.add_button = tkinter.Button(commands, text="New", command=self._add_layer)
@@ -99,6 +108,50 @@ class Window:
             index = self._rows.index(self.stage.target)
             self.layer_list.selection_set(index)
             self.layer_list.activate(index)
+
+    def _layer_press(self, event) -> None:
+        self._layer_src = self.layer_list.nearest(event.y)
+        self._layer_press_y = event.y
+        self._layer_dragged = False
+
+    def _layer_motion(self, event) -> None:
+        if self._layer_press_y is None or abs(event.y - self._layer_press_y) < 4:
+            return
+        self._layer_dragged = True
+        row = self.layer_list.nearest(event.y)
+        self.layer_list.selection_clear(0, "end")
+        self.layer_list.selection_set(row)
+
+    def _layer_drop(self, event) -> None:
+        src = self._layer_src
+        self._layer_src = None
+        self._layer_press_y = None
+        if not self._layer_dragged:
+            return
+        self._layer_dragged = False
+        dst = self.layer_list.nearest(event.y)
+        if src is None or src == dst or not (0 <= src < len(self._rows) and 0 <= dst < len(self._rows)):
+            self._refresh_layers()
+            return
+        node = self._rows[src]
+        target = self._rows[dst]
+        box = self.layer_list.bbox(dst)
+        fraction = 0.5
+        if box and box[3]:
+            fraction = (event.y - box[1]) / box[3]
+        if isinstance(target, Group) and 0.25 <= fraction <= 0.75:
+            moved = place_into(self.stage.document, node, target)
+        elif fraction < 0.5:
+            moved = place_above(self.stage.document, node, target)
+        else:
+            moved = place_below(self.stage.document, node, target)
+        if not moved:
+            self._refresh_layers()
+            return
+        self.stage.retarget(node)
+        self._refresh_layers()
+        self._paint()
+        self._keep()
 
     def _choose_layer(self, _event=None) -> None:
         chosen = self.layer_list.curselection()

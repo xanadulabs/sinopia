@@ -362,6 +362,46 @@ def delete_item(document: Document, node: Layer | Group) -> Layer | Group | None
     return neighbor
 
 
+def _contains(node: Layer | Group, other: Layer | Group) -> bool:
+    if not isinstance(node, Group):
+        return False
+    return any(item is other for item in walk(node.children))
+
+
+def _detach(document: Document, node: Layer | Group) -> None:
+    parent, index = _locate(document, node)
+    del parent[index]
+
+
+def place_above(document: Document, node: Layer | Group, target: Layer | Group) -> bool:
+    """Put `node` just above `target` in the picture, as its sibling."""
+    if node is target or _contains(node, target):
+        return False
+    _detach(document, node)
+    parent, index = _locate(document, target)
+    parent.insert(index + 1, node)
+    return True
+
+
+def place_below(document: Document, node: Layer | Group, target: Layer | Group) -> bool:
+    """Put `node` just under `target` in the picture, as its sibling."""
+    if node is target or _contains(node, target):
+        return False
+    _detach(document, node)
+    parent, index = _locate(document, target)
+    parent.insert(index, node)
+    return True
+
+
+def place_into(document: Document, node: Layer | Group, group: Group) -> bool:
+    """Make `node` the top layer inside `group`."""
+    if node is group or _contains(node, group):
+        return False
+    _detach(document, node)
+    group.children.append(node)
+    return True
+
+
 def group_item(document: Document, node: Layer | Group) -> Group:
     """Wrap `node` in a new group and return that group."""
     parent, index = _locate(document, node)

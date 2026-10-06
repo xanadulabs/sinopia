@@ -27,7 +27,7 @@ That writes `out/proof.png`, a red field with a soft green circle over it, and `
 python3 -m sinopia.window
 ```
 
-That opens the same picture. Move, brush, and type are in a column on the left. Layers are listed on the right: New, Group, and Delete. Drag moves the selected layer. Press `b` to paint it, and `v` to move it again. Press `t`, click, and type; Enter keeps the letters and Escape drops them. Letting go of a drag or a stroke writes the folder.
+That opens the same picture. Move, brush, and type are in a column on the left. Layers are listed on the right, top of the picture first. Drag a name to restack it. Drop it on the upper half of another row to put it above that layer, the lower half to put it under, or the middle of a group to put it inside. New, Group, and Delete sit under the list. Drag on the picture moves the selected layer. Press `b` to paint it, and `v` to move it again. Press `t`, click, and type; Enter keeps the letters and Escape drops them. Letting go of a drag or a stroke writes the folder.
 
 ```
 python3 -m unittest discover -s tests

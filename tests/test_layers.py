@@ -6,9 +6,22 @@ import unittest
 from pathlib import Path
 
 from sinopia.brush import BLACK
-from sinopia.document import Document, Group, Layer, add_layer, delete_item, flatten, group_item, load, save
+from sinopia.document import (
+    Document,
+    Group,
+    Layer,
+    add_layer,
+    delete_item,
+    flatten,
+    group_item,
+    load,
+    place_above,
+    place_below,
+    place_into,
+    save,
+)
 from sinopia.image import Image
-from sinopia.proof import proof_document
+from sinopia.proof import SIZE, proof_document
 from sinopia.stage import Stage
 
 RED = (180, 24, 24, 255)
@@ -57,6 +70,29 @@ class LayerMenuTest(unittest.TestCase):
         self.assertIsNone(delete_item(document, document.layers[0]))
         self.assertEqual(len(document.layers), 1)
 
+    def test_placing_a_layer_above_another_changes_the_picture(self):
+        document = proof_document()
+        red, green = document.layers
+        self.assertTrue(place_above(document, red, green))
+        self.assertEqual([item.name for item in document.layers], ["green", "red"])
+        self.assertEqual(flatten(document).get(SIZE // 2, SIZE // 2), RED)
+
+    def test_placing_a_layer_below_sends_it_under(self):
+        document = proof_document()
+        red, green = document.layers
+        place_above(document, red, green)
+        self.assertTrue(place_below(document, red, green))
+        self.assertEqual([item.name for item in document.layers], ["red", "green"])
+
+    def test_a_layer_can_be_dropped_into_a_group(self):
+        document = proof_document()
+        red, green = document.layers
+        group = group_item(document, green)
+        self.assertTrue(place_into(document, red, group))
+        self.assertEqual(document.layers, [group])
+        self.assertEqual([child.name for child in group.children], ["green", "red"])
+        self.assertFalse(place_into(document, group, group))
+
     def test_the_brush_paints_the_selected_layer(self):
         document = proof_document()
         stage = Stage(document)
@@ -95,5 +131,19 @@ class LayerPanelTest(unittest.TestCase):
             self.assertEqual(window.layer_list.get(1), "    layer")
             window.delete_button.invoke()
             self.assertEqual(window.layer_list.get(0), "green")
+            red_box = window.layer_list.bbox(1)
+            green_box = window.layer_list.bbox(0)
+            self.assertIsNotNone(red_box)
+            self.assertIsNotNone(green_box)
+            window._layer_press(_At(red_box[1] + red_box[3] // 2))
+            window._layer_motion(_At(green_box[1] + 1))
+            window._layer_drop(_At(green_box[1] + 1))
+            self.assertEqual(window.layer_list.get(0), "red")
+            self.assertEqual(document.layers[-1].name, "red")
         finally:
             window.root.destroy()
+
+
+class _At:
+    def __init__(self, y: int):
+        self.y = y
