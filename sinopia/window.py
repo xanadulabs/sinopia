@@ -6,7 +6,16 @@ Tk draws the pixels. The folder on disk stays the document.
 import tkinter
 from pathlib import Path
 
-from sinopia.document import Document, load, save
+from sinopia.document import (
+    Document,
+    Group,
+    add_layer,
+    delete_item,
+    group_item,
+    layer_rows,
+    load,
+    save,
+)
 from sinopia.proof import proof_document
 from sinopia.stage import Stage, ppm_bytes
 
@@ -50,13 +59,78 @@ class Window:
         self.photo = tkinter.PhotoImage(width=picture.width * SCALE, height=picture.height * SCALE)
         self.label = tkinter.Label(body, image=self.photo, borderwidth=0, bg=RAIL)
         self.label.pack(side="left")
+        panel = tkinter.Frame(body, bg=RAIL)
+        panel.pack(side="right", fill="y")
+        self.layer_list = tkinter.Listbox(
+            panel,
+            width=18,
+            height=16,
+            exportselection=False,
+            activestyle="none",
+            bg="white",
+        )
+        self.layer_list.pack(fill="both", expand=True, padx=4, pady=4)
+        self.layer_list.bind("<<ListboxSelect>>", self._choose_layer)
+        commands = tkinter.Frame(panel, bg=RAIL)
+        commands.pack(fill="x", padx=4, pady=(0, 4))
+        self.add_button = tkinter.Button(commands, text="New", command=self._add_layer)
+        self.group_button = tkinter.Button(commands, text="Group", command=self._group_layer)
+        self.delete_button = tkinter.Button(commands, text="Delete", command=self._delete_layer)
+        for button in (self.add_button, self.group_button, self.delete_button):
+            button.pack(side="left", padx=1)
+        self._rows: list = []
         self.label.bind("<ButtonPress-1>", self._press)
         self.label.bind("<B1-Motion>", self._drag)
         self.label.bind("<ButtonRelease-1>", self._release)
         self.root.bind("<KeyPress>", self._key)
         self._mark_tools()
         self._title()
+        self._refresh_layers()
         self._paint()
+
+    def _refresh_layers(self) -> None:
+        self.layer_list.delete(0, "end")
+        self._rows = []
+        for depth, item in layer_rows(self.stage.document):
+            mark = "▸ " if isinstance(item, Group) else ""
+            self.layer_list.insert("end", ("    " * depth) + mark + item.name)
+            self._rows.append(item)
+        if self.stage.target in self._rows:
+            index = self._rows.index(self.stage.target)
+            self.layer_list.selection_set(index)
+            self.layer_list.activate(index)
+
+    def _choose_layer(self, _event=None) -> None:
+        chosen = self.layer_list.curselection()
+        if not chosen:
+            return
+        self.stage.select(self._rows[chosen[0]])
+        self._paint()
+
+    def _add_layer(self) -> None:
+        self.stage.select(add_layer(self.stage.document, self.stage.target))
+        self._refresh_layers()
+        self._paint()
+        self._keep()
+
+    def _group_layer(self) -> None:
+        self.stage.select(group_item(self.stage.document, self.stage.target))
+        self._refresh_layers()
+        self._paint()
+        self._keep()
+
+    def _delete_layer(self) -> None:
+        nxt = delete_item(self.stage.document, self.stage.target)
+        if nxt is None:
+            return
+        self.stage.select(nxt)
+        self._refresh_layers()
+        self._paint()
+        self._keep()
+
+    def _keep(self) -> None:
+        if self.on_release is not None:
+            self.on_release()
 
     def set_tool(self, tool: str) -> None:
         if tool not in ("move", "brush", "type"):

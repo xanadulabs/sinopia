@@ -1,6 +1,6 @@
 """Type on a layer. Letters preview until Enter bakes them into the pixels."""
 
-from sinopia.document import flatten
+from sinopia.document import Layer, flatten
 from sinopia.glyphs import ADVANCE, GLYPHS
 from sinopia.image import Image
 
@@ -30,6 +30,8 @@ class Lettering:
         self.text = ""
 
     def begin(self, x: int, y: int) -> None:
+        if not isinstance(self.stage.target, Layer):
+            return
         self.active = True
         self.origin = (x, y)
         self.text = ""
@@ -70,6 +72,5 @@ class Lettering:
         self.stage.layer.image.pixels[:] = original
 
     def _draw(self, image: Image) -> None:
-        x = self.origin[0] - self.stage.layer.x
-        y = self.origin[1] - self.stage.layer.y
+        x, y = self.stage.layer_point(self.origin[0], self.origin[1])
         place(image, x, y, self.text, self.stage.color)

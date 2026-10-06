@@ -1,39 +1,51 @@
 """The picture on screen. Dragging moves one layer; the brush paints that layer."""
 
 from sinopia.brush import BLACK, line, stamp
-from sinopia.document import Document, flatten, flatten_below, paint_layer
+from sinopia.document import Document, Group, Layer, flatten, parent_offset
 from sinopia.image import Image
 from sinopia.lettering import Lettering
 
 
 class Stage:
-    def __init__(self, document: Document, layer_index: int = -1):
+    def __init__(self, document: Document):
         if not document.layers:
             raise ValueError("a stage needs a layer to drag")
         self.document = document
-        self.layer_index = layer_index
+        self.target: Layer | Group = document.layers[-1]
         self.picture = flatten(document)
         self.color = BLACK
         self.radius = 2
         self._press: tuple[int, int, int, int] | None = None
         self._stroke: tuple[int, int] | None = None
-        self._under: Image | None = None
         self.lettering = Lettering(self)
 
     @property
-    def layer(self):
-        return self.document.layers[self.layer_index]
+    def layer(self) -> Layer | Group:
+        return self.target
+
+    def select(self, node: Layer | Group) -> None:
+        if node is self.target:
+            return
+        if self.lettering.active:
+            self.lettering.cancel()
+        self.target = node
+        self._press = None
+        self._stroke = None
+        self.picture = flatten(self.document)
+
+    def layer_point(self, x: int, y: int) -> tuple[int, int]:
+        group_x, group_y = parent_offset(self.document, self.target)
+        return x - self.target.x - group_x, y - self.target.y - group_y
 
     def press(self, x: int, y: int) -> None:
-        self._remember_under()
-        self._press = (x, y, self.layer.x, self.layer.y)
+        self._press = (x, y, self.target.x, self.target.y)
 
     def shift(self, x: int, y: int) -> None:
         if self._press is None:
             return
         x0, y0, origin_x, origin_y = self._press
-        self.layer.x = origin_x + (x - x0)
-        self.layer.y = origin_y + (y - y0)
+        self.target.x = origin_x + (x - x0)
+        self.target.y = origin_y + (y - y0)
 
     def drag(self, x: int, y: int) -> None:
         self.shift(x, y)
@@ -48,7 +60,8 @@ class Stage:
         self._press = None
 
     def brush_press(self, x: int, y: int) -> None:
-        self._remember_under()
+        if not isinstance(self.target, Layer):
+            return
         self._stroke = None
         self._brush_to(x, y)
 
@@ -68,24 +81,18 @@ class Stage:
             points = [(x, y)]
         else:
             points = line(self._stroke, (x, y))[1:]
-        image = self.layer.image
+        if not isinstance(self.target, Layer):
+            return
+        image = self.target.image
         for px, py in points:
-            stamp(image, px - self.layer.x, py - self.layer.y, self.color, self.radius)
+            local_x, local_y = self.layer_point(px, py)
+            stamp(image, local_x, local_y, self.color, self.radius)
         self._stroke = (x, y)
         if restack:
             self._restack()
 
-    def _remember_under(self) -> None:
-        index = self.layer_index
-        if index < 0:
-            index += len(self.document.layers)
-        self._under = flatten_below(self.document, index)
-
     def _restack(self) -> None:
-        if self._under is None:
-            self.picture = flatten(self.document)
-        else:
-            self.picture = paint_layer(self._under, self.layer)
+        self.picture = flatten(self.document)
 
 
 def ppm_bytes(image: Image) -> bytes:
