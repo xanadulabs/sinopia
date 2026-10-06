@@ -17,11 +17,12 @@ class ViewTest(unittest.TestCase):
         window = Window(stage)
         try:
             window.root.update()
-            self.assertEqual(window.photo.width(), SIZE * window.scale)
+            self.assertEqual(window.scale, 1)
+            self.assertEqual(window.photo.width(), SIZE)
             window.set_tool("zoom")
             window._release(_Point(1, 1))
-            self.assertEqual(window.scale, 16)
-            self.assertEqual(window.photo.width(), SIZE * 16)
+            self.assertEqual(window.scale, 2)
+            self.assertEqual(window.photo.width(), SIZE * 2)
             window.set_scale(2)
             window.set_tool("move")
             window._press(_Point(3 * 2, 0))
@@ -46,8 +47,60 @@ class ViewTest(unittest.TestCase):
             window.root.destroy()
         self.assertEqual(calls, ["saved", "saved"])
 
+    def test_a_small_picture_stays_in_the_middle_of_the_workspace(self):
+        from sinopia.window import Window
+
+        window = Window(Stage(proof_document()))
+        try:
+            window.root.update()
+            window.set_scale(4)
+            window._apply_new(40, 30)
+            window.root.update()
+            self.assertEqual(window.scale, 4)
+            self.assertGreater(window.view.winfo_width(), window.photo.width())
+            self.assertGreater(window.view.winfo_height(), window.photo.height())
+            self.assertGreater(window._origin_x, 0)
+            self.assertGreater(window._origin_y, 0)
+        finally:
+            window.root.destroy()
+
+    def test_photoshop_shortcuts_for_the_tools_we_have(self):
+        from sinopia.window import Window
+
+        window = Window(Stage(proof_document()))
+        try:
+            window.root.update()
+            window._select_all()
+            self.assertEqual(window.marquee, (0, 0, SIZE, SIZE))
+            window._deselect()
+            self.assertIsNone(window.marquee)
+            window._free_transform()
+            self.assertEqual(window.tool, "transform")
+            window.set_tool("brush")
+            window.stage.radius = 2
+            window._key(_Key("]", "bracketright"))
+            self.assertEqual(window.stage.radius, 3)
+            window._key(_Key("[", "bracketleft"))
+            self.assertEqual(window.stage.radius, 2)
+            window.set_scale(8)
+            window._actual_pixels()
+            self.assertEqual(window.scale, 1)
+            window._fit_screen()
+            self.assertGreater(window.scale, 1)
+            self.assertLessEqual(SIZE * window.scale, window.view.winfo_width())
+            self.assertLessEqual(SIZE * window.scale, window.view.winfo_height())
+        finally:
+            window.root.destroy()
+
 
 class _Point:
     def __init__(self, x: int, y: int):
         self.x = x
         self.y = y
+
+
+class _Key:
+    def __init__(self, char: str, keysym: str):
+        self.char = char
+        self.keysym = keysym
+        self.state = 0

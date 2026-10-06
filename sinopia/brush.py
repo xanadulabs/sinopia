@@ -10,14 +10,22 @@ def stamp(image: Image, x: int, y: int, color: tuple[int, int, int, int], radius
     if radius < 0:
         raise ValueError("radius must be zero or more")
     limit = radius * radius
+    ink = bytes(int(channel) & 255 for channel in color)
+    pixels = image.pixels
+    width = image.width
+    height = image.height
     for dy in range(-radius, radius + 1):
+        py = y + dy
+        if not 0 <= py < height:
+            continue
+        row = py * width
         for dx in range(-radius, radius + 1):
             if dx * dx + dy * dy > limit:
                 continue
             px = x + dx
-            py = y + dy
-            if 0 <= px < image.width and 0 <= py < image.height:
-                image.set(px, py, color)
+            if 0 <= px < width:
+                start = (row + px) * 4
+                pixels[start : start + 4] = ink
 
 
 def line(start: tuple[int, int], end: tuple[int, int]) -> list[tuple[int, int]]:

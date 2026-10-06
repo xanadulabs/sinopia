@@ -165,7 +165,7 @@ class LayerPanelTest(unittest.TestCase):
             self.assertEqual(window.stage.target.name, "red")
             self.assertEqual(window.layer_list.curselection(), (1,))
             self.assertEqual(window.layer_list.cget("selectbackground"), "#3d6f99")
-            spot = (SIZE // 2) * 8
+            spot = (SIZE // 2) * window.scale
             window._press(_Click(spot, spot))
             self.assertEqual(window.stage.target.name, "green")
             self.assertEqual(window.layer_list.curselection(), (0,))

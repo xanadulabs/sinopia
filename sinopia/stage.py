@@ -318,18 +318,47 @@ def _uniform(
 
 
 def ppm_bytes(image: Image) -> bytes:
-    """An uncompressed RGB picture. Tk reads this much faster than a grid of color names."""
+    """An uncompressed RGB picture. Empty pixels show white. Tk reads this faster than color names."""
     width = image.width
     height = image.height
     source = image.pixels
-    rgb = bytearray(width * height * 3)
-    pixel = 0
-    for index in range(0, len(source), 4):
-        rgb[pixel] = source[index]
-        rgb[pixel + 1] = source[index + 1]
-        rgb[pixel + 2] = source[index + 2]
-        pixel += 3
-    return b"P6\n%d %d\n255\n" % (width, height) + rgb
+    count = width * height
+    header = b"P6\n%d %d\n255\n" % (width, height)
+    if source[3::4] == b"\xff" * count:
+        rgb = bytearray(count * 3)
+        rgb[0::3] = source[0::4]
+        rgb[1::3] = source[1::4]
+        rgb[2::3] = source[2::4]
+        return header + rgb
+    rgb = bytearray(b"\xff" * (count * 3))
+    clear = b"\x00" * width
+    solid = b"\xff" * width
+    for y in range(height):
+        base = y * width * 4
+        alphas = source[base + 3 : base + width * 4 : 4]
+        if alphas == clear:
+            continue
+        row = y * width * 3
+        if alphas == solid:
+            span = source[base : base + width * 4]
+            rgb[row : row + width * 3 : 3] = span[0::4]
+            rgb[row + 1 : row + width * 3 : 3] = span[1::4]
+            rgb[row + 2 : row + width * 3 : 3] = span[2::4]
+            continue
+        pixel = row
+        for index in range(base, base + width * 4, 4):
+            alpha = source[index + 3]
+            if alpha == 255:
+                rgb[pixel] = source[index]
+                rgb[pixel + 1] = source[index + 1]
+                rgb[pixel + 2] = source[index + 2]
+            elif alpha:
+                keep = 255 - alpha
+                rgb[pixel] = (source[index] * alpha + 255 * keep + 127) // 255
+                rgb[pixel + 1] = (source[index + 1] * alpha + 255 * keep + 127) // 255
+                rgb[pixel + 2] = (source[index + 2] * alpha + 255 * keep + 127) // 255
+            pixel += 3
+    return header + rgb
 
 
 def scaled_rgb(image: Image, scale: int) -> list[str]:

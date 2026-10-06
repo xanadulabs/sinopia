@@ -359,3 +359,107 @@ class SizeDialog:
     def _cancel(self, _event=None) -> None:
         self.chosen = None
         self.top.destroy()
+
+
+def choose_canvas(parent: tkinter.Misc, width: int, height: int) -> tuple[int, int, str] | None:
+    """How many pixels to add, and which square the picture stays on."""
+    dialog = CanvasDialog(parent, width, height)
+    parent.wait_window(dialog.top)
+    return dialog.chosen
+
+
+class CanvasDialog:
+    def __init__(self, parent: tkinter.Misc, width: int, height: int):
+        self.chosen: tuple[int, int, str] | None = None
+        self._width = width
+        self._height = height
+        self.anchor = "c"
+        self.top = tkinter.Toplevel(parent)
+        self.top.title("Canvas Size")
+        self.top.configure(bg=RAIL)
+        self.top.transient(parent)
+        form = tkinter.Frame(self.top, bg=RAIL)
+        form.pack(padx=12, pady=(12, 4))
+        tkinter.Label(form, text=f"Current {width} × {height}", bg=RAIL).grid(row=0, column=0, columnspan=3, sticky="w")
+        tkinter.Label(form, text="Width", bg=RAIL).grid(row=1, column=0, sticky="w", pady=(8, 0))
+        tkinter.Label(form, text="Height", bg=RAIL).grid(row=2, column=0, sticky="w", pady=(6, 0))
+        self.width_var = tkinter.StringVar(value="0")
+        self.height_var = tkinter.StringVar(value="0")
+        width_entry = tkinter.Entry(form, textvariable=self.width_var, width=8)
+        height_entry = tkinter.Entry(form, textvariable=self.height_var, width=8)
+        width_entry.grid(row=1, column=1, sticky="w", padx=(8, 0), pady=(8, 0))
+        height_entry.grid(row=2, column=1, sticky="w", padx=(8, 0), pady=(6, 0))
+        self.width_var.trace_add("write", lambda *_args: self._preview())
+        self.height_var.trace_add("write", lambda *_args: self._preview())
+        grid = tkinter.Frame(form, bg=RAIL)
+        grid.grid(row=1, column=2, rowspan=2, padx=(16, 0), pady=(8, 0))
+        self._anchor_buttons = {}
+        for name, row, column in (
+            ("nw", 0, 0),
+            ("n", 0, 1),
+            ("ne", 0, 2),
+            ("w", 1, 0),
+            ("c", 1, 1),
+            ("e", 1, 2),
+            ("sw", 2, 0),
+            ("s", 2, 1),
+            ("se", 2, 2),
+        ):
+            button = tkinter.Button(grid, text=" " if name != "c" else "●", width=2, command=lambda chosen=name: self._pick(chosen))
+            button.grid(row=row, column=column, padx=1, pady=1)
+            self._anchor_buttons[name] = button
+        self.note = tkinter.Label(self.top, text=self._note(0, 0), bg=RAIL, anchor="w")
+        self.note.pack(fill="x", padx=12, pady=(8, 0))
+        tkinter.Label(self.top, text="The picture stays on the square you select.", bg=RAIL, anchor="w").pack(
+            fill="x", padx=12
+        )
+        buttons = tkinter.Frame(self.top, bg=RAIL)
+        buttons.pack(fill="x", padx=12, pady=12)
+        tkinter.Button(buttons, text="Cancel", command=self._cancel).pack(side="right")
+        tkinter.Button(buttons, text="OK", command=self._accept).pack(side="right", padx=(0, 6))
+        self.top.bind("<Return>", self._accept)
+        self.top.bind("<Escape>", self._cancel)
+        self.top.protocol("WM_DELETE_WINDOW", self._cancel)
+        self.top.grab_set()
+
+    def _pick(self, anchor: str) -> None:
+        self.anchor = anchor
+        for name, button in self._anchor_buttons.items():
+            button.configure(text="●" if name == anchor else " ", relief="sunken" if name == anchor else "raised")
+
+    def _amounts(self) -> tuple[int, int] | None:
+        try:
+            width = int(self.width_var.get())
+            height = int(self.height_var.get())
+        except ValueError:
+            return None
+        if width < 0 or height < 0:
+            return None
+        return width, height
+
+    def _note(self, extra_w: int, extra_h: int) -> str:
+        return f"New size {self._width + extra_w} × {self._height + extra_h}"
+
+    def _preview(self) -> None:
+        amounts = self._amounts()
+        if amounts is None:
+            self.note.configure(text="Type how many pixels to add.")
+            return
+        self.note.configure(text=self._note(*amounts))
+
+    def _accept(self, _event=None) -> str:
+        amounts = self._amounts()
+        if amounts is None:
+            self.note.configure(text="Type how many pixels to add.")
+            return "break"
+        extra_w, extra_h = amounts
+        if self._width + extra_w > MAX_EDGE or self._height + extra_h > MAX_EDGE:
+            self.note.configure(text=f"Keep each side within {MAX_EDGE}.")
+            return "break"
+        self.chosen = (extra_w, extra_h, self.anchor)
+        self.top.destroy()
+        return "break"
+
+    def _cancel(self, _event=None) -> None:
+        self.chosen = None
+        self.top.destroy()

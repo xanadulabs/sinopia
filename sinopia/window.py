@@ -24,11 +24,14 @@ from sinopia.document import (
     save,
     walk,
 )
+from sinopia.canvas import resize_canvas
+from sinopia.clipboard import clipboard_picture, publish_image
+from sinopia.mark import photo as mark_photo
 from sinopia.exchange import layer_name, read_picture, write_picture
 from sinopia.history import History
 from sinopia.icons import tool_cursor, tool_image
 from sinopia.image import Image
-from sinopia.picker import choose_picture, choose_size
+from sinopia.picker import choose_canvas, choose_picture, choose_size
 from sinopia.select import copied_image, copy_pixels, crop, marquee_box
 from sinopia.proof import proof_document
 from sinopia.stage import Stage, ppm_bytes
@@ -36,9 +39,12 @@ from sinopia.typeface import font_families
 
 FRAME = Path("/tmp/sinopia-frame.ppm")
 
-SCALE = 8
+SCALE = 1
 RAIL = "#d6d6d6"
 RAIL_PRESSED = "#a6a6a6"
+PASTE = "#8c8c8c"
+VIEW_W = 960
+VIEW_H = 720
 TOOLS = (
     ("select", "M"),
     ("move", "V"),
@@ -61,6 +67,8 @@ class Window:
         self._pointer: tuple[int, int] | None = None
         self._paint_after: str | None = None
         self.root = tkinter.Tk()
+        self._icons = (mark_photo(self.root, 1), mark_photo(self.root, 2), mark_photo(self.root, 6))
+        self.root.iconphoto(True, self._icons[2], self._icons[1], self._icons[0])
         self.history = History(stage.document)
         self._history_lock = False
         pictures = Path.home() / "Pictures"
@@ -69,7 +77,7 @@ class Window:
         self.options = tkinter.Frame(self.root, bg=RAIL)
         self.options.pack(side="top", fill="x")
         body = tkinter.Frame(self.root, bg=RAIL)
-        body.pack()
+        body.pack(fill="both", expand=True)
         rail = tkinter.Frame(body, bg=RAIL, padx=4, pady=4)
         rail.pack(side="left", fill="y")
         self.buttons: dict[str, tkinter.Button] = {}
@@ -89,10 +97,23 @@ class Window:
             self.buttons[name] = button
         self._source = tkinter.PhotoImage(width=picture.width, height=picture.height)
         self.photo = tkinter.PhotoImage(width=picture.width * SCALE, height=picture.height * SCALE)
-        self.label = tkinter.Label(body, image=self.photo, borderwidth=0, bg=RAIL)
-        self.label.pack(side="left")
+        self._origin_x = 0
+        self._origin_y = 0
         panel = tkinter.Frame(body, bg=RAIL)
         panel.pack(side="right", fill="y")
+        work = tkinter.Frame(body, bg=PASTE)
+        work.pack(side="left", fill="both", expand=True)
+        work.rowconfigure(0, weight=1)
+        work.columnconfigure(0, weight=1)
+        self.view = tkinter.Canvas(work, width=VIEW_W, height=VIEW_H, bg=PASTE, highlightthickness=0)
+        self.view.grid(row=0, column=0, sticky="nsew")
+        self.xscroll = tkinter.Scrollbar(work, orient="horizontal", command=self.view.xview)
+        self.yscroll = tkinter.Scrollbar(work, orient="vertical", command=self.view.yview)
+        self.xscroll.grid(row=1, column=0, sticky="ew")
+        self.yscroll.grid(row=0, column=1, sticky="ns")
+        self.view.configure(xscrollcommand=self.xscroll.set, yscrollcommand=self.yscroll.set)
+        self._image_item = self.view.create_image(0, 0, image=self.photo, anchor="nw")
+        self.label = self.view
         self.layer_list = tkinter.Listbox(
             panel,
             width=18,
@@ -134,10 +155,12 @@ class Window:
         self.history_list.pack(fill="x", padx=4, pady=(2, 6))
         self.history_list.bind("<<ListboxSelect>>", self._jump_history)
         self._rows: list = []
-        self.label.bind("<ButtonPress-1>", self._press)
-        self.label.bind("<B1-Motion>", self._drag)
-        self.label.bind("<ButtonRelease-1>", self._release)
-        self.label.bind("<Motion>", self._hover)
+        self.view.bind("<Configure>", self._place_picture)
+        self.view.bind("<ButtonPress-1>", self._press_view)
+        self.view.bind("<B1-Motion>", self._drag_view)
+        self.view.bind("<ButtonRelease-1>", self._release_view)
+        self.view.bind("<Motion>", self._hover_view)
+        self.root.minsize(880, 560)
         self.root.bind("<KeyPress>", self._key)
         self.root.bind("<Control-s>", self._save)
         self.root.bind("<Control-n>", self._new_file)
@@ -149,6 +172,25 @@ class Window:
         self.root.bind("<Control-Z>", self._undo)
         self.root.bind("<Control-y>", self._redo)
         self.root.bind("<Control-Shift-Z>", self._redo)
+        self.root.bind("<Control-Alt-z>", self._undo)
+        self.root.bind("<Control-Alt-Z>", self._undo)
+        self.root.bind("<Control-Shift-c>", self._copy)
+        self.root.bind("<Control-Shift-C>", self._copy)
+        self.root.bind("<Control-a>", self._select_all)
+        self.root.bind("<Control-d>", self._deselect)
+        self.root.bind("<Control-t>", self._free_transform)
+        self.root.bind("<Control-g>", self._group_layer)
+        self.root.bind("<Control-Shift-N>", self._add_layer)
+        self.root.bind("<Control-q>", self._quit)
+        self.root.bind("<Control-plus>", self._zoom_in)
+        self.root.bind("<Control-equal>", self._zoom_in)
+        self.root.bind("<Control-KP_Add>", self._zoom_in)
+        self.root.bind("<Control-minus>", self._zoom_out)
+        self.root.bind("<Control-KP_Subtract>", self._zoom_out)
+        self.root.bind("<Control-0>", self._fit_screen)
+        self.root.bind("<Control-KP_0>", self._fit_screen)
+        self.root.bind("<Control-Alt-0>", self._actual_pixels)
+        self.root.bind("<Control-Alt-KP_0>", self._actual_pixels)
         self._mark_tools()
         self._show_options()
         self._title()
@@ -279,19 +321,25 @@ class Window:
         self.stage.select(self._rows[chosen[0]])
         self._paint()
 
-    def _add_layer(self) -> None:
+    def _add_layer(self, _event=None):
+        if self._rename_entry is not None or self.stage.lettering.active:
+            return "break"
         self.stage.select(add_layer(self.stage.document, self.stage.target))
         self._refresh_layers()
         self._paint()
         self._commit("Layer")
         self._keep()
+        return "break"
 
-    def _group_layer(self) -> None:
+    def _group_layer(self, _event=None):
+        if self._rename_entry is not None or self.stage.lettering.active:
+            return "break"
         self.stage.select(group_item(self.stage.document, self.stage.target))
         self._refresh_layers()
         self._paint()
         self._commit("Group")
         self._keep()
+        return "break"
 
     def _delete_layer(self) -> None:
         kind = "Group" if isinstance(self.stage.target, Group) else "Layer"
@@ -312,36 +360,69 @@ class Window:
         self.file_menu.add_command(label="Save", command=self._save, accelerator="Ctrl+S")
         self.file_menu.add_command(label="Save As...", command=self._save_as, accelerator="Ctrl+Shift+S")
         self.file_menu.add_separator()
-        self.file_menu.add_command(label="Exit", command=self.root.destroy)
+        self.file_menu.add_command(label="Exit", command=self._quit, accelerator="Ctrl+Q")
         bar.add_cascade(label="File", menu=self.file_menu)
         self.edit_menu = tkinter.Menu(bar, tearoff=0)
         self.edit_menu.add_command(label="Undo", command=self._undo, accelerator="Ctrl+Z")
         self.edit_menu.add_command(label="Redo", command=self._redo, accelerator="Ctrl+Shift+Z")
         self.edit_menu.add_separator()
         self.edit_menu.add_command(label="Copy", command=self._copy, accelerator="Ctrl+C")
+        self.edit_menu.add_separator()
+        self.edit_menu.add_command(label="Select All", command=self._select_all, accelerator="Ctrl+A")
+        self.edit_menu.add_command(label="Deselect", command=self._deselect, accelerator="Ctrl+D")
+        self.edit_menu.add_command(label="Free Transform", command=self._free_transform, accelerator="Ctrl+T")
+        self.edit_menu.add_separator()
+        self.edit_menu.add_command(label="Canvas Size...", command=self._canvas_size)
         bar.add_cascade(label="Edit", menu=self.edit_menu)
         view = tkinter.Menu(bar, tearoff=0)
-        view.add_command(label="Zoom In", command=lambda: self.set_scale(self.scale * 2), accelerator="+")
-        view.add_command(label="Zoom Out", command=lambda: self.set_scale(self.scale // 2), accelerator="−")
-        view.add_command(label="Actual Pixels", command=lambda: self.set_scale(1))
+        view.add_command(label="Zoom In", command=self._zoom_in, accelerator="Ctrl++")
+        view.add_command(label="Zoom Out", command=self._zoom_out, accelerator="Ctrl+−")
+        view.add_command(label="Fit on Screen", command=self._fit_screen, accelerator="Ctrl+0")
+        view.add_command(label="Actual Pixels", command=self._actual_pixels, accelerator="Ctrl+Alt+0")
         bar.add_cascade(label="View", menu=view)
         about = tkinter.Menu(bar, tearoff=0)
         about.add_command(label="About Sinopia...", command=self._about)
         bar.add_cascade(label="About", menu=about)
         self.root.configure(menu=bar)
 
-    def _about(self) -> None:
-        messagebox.showinfo(
-            "About Sinopia",
-            "Sinopia\n\nA lightweight, minimalist compositor. An early Photoshop, "
-            "without the modern bells and whistles.\n\n"
-            "The picture you keep is a folder of PNGs plus stack.txt. "
-            "PNG and JPEG are copies.",
-            parent=self.root,
-        )
+    def _about(self) -> tkinter.Toplevel:
+        dialog = tkinter.Toplevel(self.root)
+        dialog.title("About Sinopia")
+        dialog.transient(self.root)
+        dialog.resizable(False, False)
+        dialog.configure(bg=RAIL)
+        mark = mark_photo(dialog, 8)
+        dialog._mark = mark
+        body = tkinter.Frame(dialog, bg=RAIL, padx=18, pady=18)
+        body.pack()
+        body.rowconfigure(0, weight=1)
+        tkinter.Label(body, image=mark, bg=RAIL, borderwidth=0).grid(row=0, column=0, sticky="", padx=(0, 18))
+        words = tkinter.Frame(body, bg=RAIL)
+        words.grid(row=0, column=1, sticky="n")
+        tkinter.Label(words, text="Sinopia", bg=RAIL, font=("TkDefaultFont", 16, "bold")).pack(anchor="w")
+        tkinter.Label(
+            words,
+            text=(
+                "A lightweight, minimalist compositor. An early Photoshop, "
+                "without the modern bells and whistles.\n\n"
+                "The picture you keep is a folder of PNGs plus stack.txt. "
+                "PNG and JPEG are copies."
+            ),
+            bg=RAIL,
+            justify="left",
+            wraplength=mark.width(),
+        ).pack(anchor="w", pady=(8, 0))
+        tkinter.Label(words, text="Will Hinds, 2026", bg=RAIL).pack(anchor="sw", pady=(12, 0))
+        tkinter.Button(words, text="OK", width=8, command=dialog.destroy).pack(anchor="se", pady=(8, 0))
+        dialog.bind("<Return>", lambda _event: dialog.destroy())
+        dialog.bind("<Escape>", lambda _event: dialog.destroy())
+        dialog.update_idletasks()
+        dialog.grab_set()
+        dialog.focus_set()
+        return dialog
 
     def _new_file(self, _event=None):
-        copied = copied_image()
+        copied = clipboard_picture()
         clipboard = None if copied is None else (copied.width, copied.height)
         size = choose_size(
             self.root,
@@ -350,23 +431,51 @@ class Window:
         )
         if size is None:
             return "break"
-        self._apply_new(*size)
+        self._apply_new(*size, copied)
         return "break"
 
-    def _apply_new(self, width: int, height: int) -> None:
+    def _apply_new(self, width: int, height: int, picture: Image | None = None) -> None:
         document = self.stage.document
         document.width = width
         document.height = height
-        document.layers = [Layer("layer", Image(width, height, (255, 255, 255, 255)))]
+        if picture is not None and picture.width == width and picture.height == height:
+            layer = Image.from_pixels(width, height, picture.pixels)
+        else:
+            layer = Image(width, height, (255, 255, 255, 255))
+        document.layers = [Layer("layer", layer)]
         self.marquee = None
         self.history.commit("New")
-        self._restore_view(fit=True)
+        self._restore_view()
         self._keep()
 
     def _copy(self, _event=None):
         if self.stage.lettering.active or self._rename_entry is not None or self.marquee is None:
             return "break"
+        self._copy_pixels()
+        return "break"
+
+    def _canvas_size(self, _event=None):
+        choice = choose_canvas(self.root, self.stage.document.width, self.stage.document.height)
+        if choice is None:
+            return "break"
+        extra_w, extra_h, anchor = choice
+        if extra_w == 0 and extra_h == 0:
+            return "break"
+        resize_canvas(self.stage.document, extra_w, extra_h, anchor)
+        self.marquee = None
+        self.history.commit("Canvas Size")
+        self._restore_view()
+        self._keep()
+        return "break"
+
+    def _copy_pixels(self) -> None:
         copy_pixels(crop(self.stage.picture, self.marquee))
+        copied = copied_image()
+        if copied is not None:
+            try:
+                publish_image(copied)
+            except Exception:
+                pass
         return "break"
 
     def _open_file(self, _event=None):
@@ -384,7 +493,7 @@ class Window:
         document.height = image.height
         document.layers = [Layer(layer_name(path), image)]
         self.history.commit("Open")
-        self._restore_view(fit=True)
+        self._restore_view()
         return "break"
 
     def _save_as(self, _event=None):
@@ -404,7 +513,9 @@ class Window:
             messagebox.showerror("Save As", str(error), parent=self.root)
         return "break"
 
-    def _undo(self, _event=None):
+    def _undo(self, event=None):
+        if not self._first_shortcut(event):
+            return "break"
         if self.stage.lettering.active:
             self.stage.lettering.cancel()
             self._title()
@@ -437,13 +548,10 @@ class Window:
         self._restore_view()
         self._keep()
 
-    def _restore_view(self, fit: bool = False) -> None:
+    def _restore_view(self) -> None:
         name = self.stage.target.name
         node = _named(self.stage.document, name)
         self.stage.retarget(node)
-        if fit:
-            while self.scale > 1 and self.stage.picture.width * self.scale > 960:
-                self.scale //= 2
         self._install_picture()
         self._show_zoom()
         self._refresh_layers()
@@ -471,6 +579,84 @@ class Window:
         self._keep()
         return "break"
 
+    def _first_shortcut(self, event) -> bool:
+        """One key should take one step, even if two bindings see it."""
+        if event is None:
+            return True
+        key = (getattr(event, "serial", None), getattr(event, "keysym", None))
+        if key == getattr(self, "_shortcut_key", None):
+            return False
+        self._shortcut_key = key
+        return True
+
+    def _quit(self, _event=None):
+        self.root.destroy()
+        return "break"
+
+    def _select_all(self, _event=None):
+        if self._rename_entry is not None or self.stage.lettering.active:
+            return "break"
+        self.marquee = (0, 0, self.stage.document.width, self.stage.document.height)
+        self._paint()
+        return "break"
+
+    def _deselect(self, _event=None):
+        if self._rename_entry is not None or self.stage.lettering.active:
+            return "break"
+        self.marquee = None
+        self._paint()
+        return "break"
+
+    def _free_transform(self, _event=None):
+        if self._rename_entry is not None or self.stage.lettering.active:
+            return "break"
+        self.set_tool("transform")
+        return "break"
+
+    def _zoom_in(self, _event=None):
+        if self._rename_entry is not None or self.stage.lettering.active:
+            return "break"
+        self.set_scale(self.scale * 2)
+        return "break"
+
+    def _zoom_out(self, _event=None):
+        if self._rename_entry is not None or self.stage.lettering.active:
+            return "break"
+        self.set_scale(self.scale // 2)
+        return "break"
+
+    def _actual_pixels(self, _event=None):
+        if self._rename_entry is not None or self.stage.lettering.active:
+            return "break"
+        self.set_scale(1)
+        return "break"
+
+    def _fit_screen(self, event=None):
+        """The largest whole-pixel zoom that fits. This does not zoom out past actual pixels."""
+        if event is not None and getattr(event, "state", 0) & (0x8 | 0x20000):
+            return "break"
+        if self._rename_entry is not None or self.stage.lettering.active:
+            return "break"
+        self.root.update_idletasks()
+        view_w = self.view.winfo_width()
+        view_h = self.view.winfo_height()
+        if view_w < 2:
+            view_w = VIEW_W
+        if view_h < 2:
+            view_h = VIEW_H
+        picture_w = self.stage.picture.width
+        picture_h = self.stage.picture.height
+        scale = 1
+        while scale < 32 and picture_w * scale * 2 <= view_w and picture_h * scale * 2 <= view_h:
+            scale *= 2
+        self.set_scale(scale)
+        return "break"
+
+    def _brush_step(self, delta: int) -> None:
+        self.stage.radius = max(0, min(64, self.stage.radius + delta))
+        if self.tool == "brush" and getattr(self, "_radius_var", None) is not None:
+            self._radius_var.set(self.stage.radius)
+
     def set_scale(self, scale: int) -> None:
         scale = max(1, min(32, int(scale)))
         if scale == self.scale and self.photo.width() == self.stage.picture.width * scale:
@@ -485,8 +671,9 @@ class Window:
         picture = self.stage.picture
         self._source = tkinter.PhotoImage(width=picture.width, height=picture.height)
         self.photo = tkinter.PhotoImage(width=picture.width * self.scale, height=picture.height * self.scale)
-        if getattr(self, "label", None) is not None:
-            self.label.configure(image=self.photo)
+        if getattr(self, "_image_item", None) is not None:
+            self.view.itemconfigure(self._image_item, image=self.photo)
+            self._place_picture()
 
     def _show_zoom(self) -> None:
         if getattr(self, "_zoom_readout", None) is not None:
@@ -630,6 +817,8 @@ class Window:
     def _key(self, event) -> None:
         if self._rename_entry is not None:
             return
+        if getattr(event, "state", 0) & 0x4:
+            return
         if self.stage.lettering.active:
             key = getattr(event, "keysym", "")
             if key == "Return":
@@ -660,6 +849,53 @@ class Window:
             self.set_scale(self.scale * 2)
         elif getattr(event, "keysym", "") in ("minus", "KP_Subtract"):
             self.set_scale(self.scale // 2)
+        elif self.tool == "brush" and getattr(event, "keysym", "") == "bracketleft":
+            self._brush_step(-1)
+        elif self.tool == "brush" and getattr(event, "keysym", "") == "bracketright":
+            self._brush_step(1)
+
+    def _place_picture(self, _event=None) -> None:
+        """Keep the window where it is. A small picture sits in the middle of the gray."""
+        width = self.view.winfo_width()
+        height = self.view.winfo_height()
+        if width < 2 or height < 2:
+            return
+        picture_w = self.photo.width()
+        picture_h = self.photo.height()
+        self._origin_x = max(0, (width - picture_w) // 2)
+        self._origin_y = max(0, (height - picture_h) // 2)
+        self.view.configure(scrollregion=(0, 0, max(picture_w, width), max(picture_h, height)))
+        self.view.coords(self._image_item, self._origin_x, self._origin_y)
+
+    def _over_picture(self, event):
+        x = int(self.view.canvasx(event.x)) - self._origin_x
+        y = int(self.view.canvasy(event.y)) - self._origin_y
+        if not (0 <= x < self.photo.width() and 0 <= y < self.photo.height()):
+            return None
+        return _Pointer(x, y, getattr(event, "state", 0))
+
+    def _press_view(self, event) -> None:
+        point = self._over_picture(event)
+        if point is not None:
+            self._press(point)
+
+    def _drag_view(self, event) -> None:
+        point = self._over_picture(event)
+        if point is not None:
+            self._drag(point)
+
+    def _release_view(self, event) -> None:
+        point = self._over_picture(event)
+        if point is not None:
+            self._release(point)
+
+    def _hover_view(self, event) -> None:
+        point = self._over_picture(event)
+        if point is None:
+            if self.tool == "transform":
+                self.view.configure(cursor=tool_cursor("transform"))
+            return
+        self._hover(point)
 
     def _doc(self, event) -> tuple[int, int]:
         return event.x // self.scale, event.y // self.scale
@@ -884,6 +1120,13 @@ class Window:
 
     def mainloop(self) -> None:
         self.root.mainloop()
+
+
+class _Pointer:
+    def __init__(self, x: int, y: int, state: int = 0):
+        self.x = x
+        self.y = y
+        self.state = state
 
 
 def _named(document: Document, name: str) -> Layer | Group:

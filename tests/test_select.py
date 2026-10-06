@@ -3,6 +3,7 @@
 import os
 import unittest
 
+from sinopia.clipboard import clear_system, clipboard_picture, publish_image, system_image
 from sinopia.image import Image
 from sinopia.proof import proof_document
 from sinopia.select import clear_copied, copied_image, copy_pixels, crop, marquee_box
@@ -33,8 +34,9 @@ class SelectWindowTest(unittest.TestCase):
         try:
             window.root.update()
             window.set_tool("select")
-            window._press(_Click(16, 16))
-            window._release(_Click(48, 32))
+            step = window.scale
+            window._press(_Click(2 * step, 2 * step))
+            window._release(_Click(6 * step, 4 * step))
             self.assertEqual(window.marquee, (2, 2, 7, 5))
             window._copy()
             copied = copied_image()
@@ -50,6 +52,8 @@ class SelectWindowTest(unittest.TestCase):
             dialog.height_var.set("8")
             dialog._accept()
             self.assertEqual(dialog.chosen, (20, 8))
+            window._apply_new(copied.width, copied.height, copied)
+            self.assertEqual(window.stage.picture.get(0, 0), copied.get(0, 0))
             window._apply_new(20, 8)
             self.assertEqual((window.stage.document.width, window.stage.document.height), (20, 8))
             self.assertEqual(window.stage.picture.get(0, 0), (255, 255, 255, 255))
@@ -58,6 +62,24 @@ class SelectWindowTest(unittest.TestCase):
         finally:
             clear_copied()
             window.root.destroy()
+
+
+@unittest.skipUnless(os.environ.get("DISPLAY"), "no display")
+class DesktopClipboardTest(unittest.TestCase):
+    def test_a_picture_on_the_desktop_clipboard_supplies_the_size(self):
+        before = system_image()
+        try:
+            publish_image(Image(6, 4, (180, 24, 24, 255)))
+            found = clipboard_picture()
+            self.assertIsNotNone(found)
+            assert found is not None
+            self.assertEqual((found.width, found.height), (6, 4))
+            self.assertEqual(found.get(0, 0), (180, 24, 24, 255))
+        finally:
+            if before is not None:
+                publish_image(before)
+            else:
+                clear_system()
 
 
 class _Click:
