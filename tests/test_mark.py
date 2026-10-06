@@ -5,24 +5,22 @@ import unittest
 from pathlib import Path
 
 from sinopia.image import Image
-from sinopia.mark import SHORTCUT_ZOOM, tablet
+from sinopia.mark import LINE, LINE_DEEP, SHORTCUT_ZOOM, scaled, tablet
 from sinopia.png import read_png
-from sinopia.mark import scaled
 
 ROOT = Path(__file__).resolve().parents[1]
 SHORTCUT = ROOT / "sinopia.png"
-SINOPIA = (176, 52, 34, 255)
-GREEN = (32, 132, 62, 255)
 
 
 class MarkTest(unittest.TestCase):
-    def test_the_tablet_is_broken_and_carries_the_proof(self):
+    def test_the_shard_carries_a_sinopia_drawing(self):
         image = tablet()
+        colors = _colors(image)
         self.assertEqual(image.get(0, 0)[3], 0)
         self.assertEqual(image.get(image.width - 1, image.height - 1)[3], 0)
-        self.assertIn(SINOPIA, _colors(image))
-        self.assertIn(GREEN, _colors(image))
-        self.assertTrue(any(pixel[3] == 255 and pixel[0] > 180 and pixel[1] > 140 for pixel in _colors(image)))
+        self.assertIn(LINE, colors)
+        self.assertIn(LINE_DEEP, colors)
+        self.assertTrue(any(pixel[3] == 255 and pixel[1] > 120 and pixel not in (LINE, LINE_DEEP) for pixel in colors))
 
     def test_shortcut_file_is_the_same_tablet_zoomed(self):
         saved = read_png(SHORTCUT)
