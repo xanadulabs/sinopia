@@ -77,11 +77,11 @@ class ViewTest(unittest.TestCase):
             window._free_transform()
             self.assertEqual(window.tool, "transform")
             window.set_tool("brush")
-            window.stage.radius = 2
+            window.stage.diameter = 5
             window._key(_Key("]", "bracketright"))
-            self.assertEqual(window.stage.radius, 3)
+            self.assertEqual(window.stage.diameter, 6)
             window._key(_Key("[", "bracketleft"))
-            self.assertEqual(window.stage.radius, 2)
+            self.assertEqual(window.stage.diameter, 5)
             window.set_scale(8)
             window._actual_pixels()
             self.assertEqual(window.scale, 1)

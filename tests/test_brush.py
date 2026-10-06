@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from sinopia.brush import BLACK, line, stamp
+from sinopia.brush import BLACK, dab, line, stamp, tip_offsets
 from sinopia.document import Document, Layer, flatten, load, save
 from sinopia.image import Image
 from sinopia.proof import SIZE, proof_document
@@ -78,6 +78,67 @@ class BrushTest(unittest.TestCase):
 
     def test_line_includes_both_ends(self):
         self.assertEqual(line((0, 0), (0, 2)), [(0, 0), (0, 1), (0, 2)])
+
+    def test_a_hard_full_brush_matches_the_old_circle(self):
+        painted = Image(5, 5, GREEN)
+        expected = Image(5, 5, GREEN)
+        stamp(expected, 2, 2, BLACK, 2)
+        document = Document(5, 5, [Layer("green", painted)])
+        stage = Stage(document)
+        stage.diameter = 5
+        stage.brush_press(2, 2)
+        stage.brush_release(2, 2)
+        self.assertEqual(painted.pixels, expected.pixels)
+
+    def test_hardness_feathers_the_edge(self):
+        image = Image(5, 5, GREEN)
+        document = Document(5, 5, [Layer("green", image)])
+        stage = Stage(document)
+        stage.diameter = 5
+        stage.hardness = 0
+        stage.brush_press(2, 2)
+        stage.brush_release(2, 2)
+        self.assertEqual(image.get(2, 2), BLACK)
+        self.assertNotEqual(image.get(3, 2), BLACK)
+        self.assertNotEqual(image.get(3, 2), GREEN)
+        self.assertLess(image.get(3, 2)[1], GREEN[1])
+        self.assertEqual(image.get(0, 0), GREEN)
+
+    def test_flow_builds_until_opacity_stops_it(self):
+        image = Image(1, 1, GREEN)
+        origin = bytes(image.pixels)
+        coverage = bytearray(1)
+        offsets = tip_offsets(1, 100)
+        dab(image, 0, 0, BLACK, offsets, 40, 100, origin, coverage)
+        once = image.get(0, 0)
+        dab(image, 0, 0, BLACK, offsets, 40, 100, origin, coverage)
+        twice = image.get(0, 0)
+        self.assertNotEqual(once, GREEN)
+        self.assertNotEqual(once, BLACK)
+        self.assertLess(twice[1], once[1])
+        dab(image, 0, 0, BLACK, offsets, 40, 100, origin, coverage)
+        self.assertEqual(image.get(0, 0), BLACK)
+
+        capped = Image(1, 1, GREEN)
+        cap_origin = bytes(capped.pixels)
+        cap_coverage = bytearray(1)
+        dab(capped, 0, 0, BLACK, offsets, 100, 40, cap_origin, cap_coverage)
+        held = capped.get(0, 0)
+        dab(capped, 0, 0, BLACK, offsets, 100, 40, cap_origin, cap_coverage)
+        self.assertEqual(capped.get(0, 0), held)
+        self.assertNotEqual(held, BLACK)
+        self.assertNotEqual(held, GREEN)
+
+    def test_a_hard_stroke_stays_solid_between_dabs(self):
+        image = Image(16, 5, GREEN)
+        document = Document(16, 5, [Layer("green", image)])
+        stage = Stage(document)
+        stage.diameter = 5
+        stage.brush_press(2, 2)
+        stage.brush_drag(12, 2)
+        stage.brush_release(12, 2)
+        for x in range(4, 11):
+            self.assertEqual(image.get(x, 2), BLACK, x)
 
 
 @unittest.skipUnless(os.environ.get("DISPLAY"), "no display")

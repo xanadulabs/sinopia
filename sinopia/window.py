@@ -653,9 +653,9 @@ class Window:
         return "break"
 
     def _brush_step(self, delta: int) -> None:
-        self.stage.radius = max(0, min(64, self.stage.radius + delta))
-        if self.tool == "brush" and getattr(self, "_radius_var", None) is not None:
-            self._radius_var.set(self.stage.radius)
+        self.stage.diameter = max(1, min(500, self.stage.diameter + delta))
+        if self.tool == "brush" and getattr(self, "_diameter_var", None) is not None:
+            self._diameter_var.set(self.stage.diameter)
 
     def set_scale(self, scale: int) -> None:
         scale = max(1, min(32, int(scale)))
@@ -715,14 +715,23 @@ class Window:
         self._zoom_readout.pack(side="right", padx=8)
 
     def _brush_options(self) -> None:
-        tkinter.Label(self.options, text="Size", bg=RAIL).pack(side="left", padx=(6, 2), pady=4)
-        self._radius_var = tkinter.IntVar(value=self.stage.radius)
+        self._diameter_var = tkinter.IntVar(value=self.stage.diameter)
+        self._hardness_var = tkinter.IntVar(value=self.stage.hardness)
+        self._opacity_var = tkinter.IntVar(value=self.stage.opacity)
+        self._flow_var = tkinter.IntVar(value=self.stage.flow)
+        self._brush_field("Diameter", self._diameter_var, 1, 500)
+        self._brush_field("Hardness", self._hardness_var, 0, 100)
+        self._brush_field("Opacity", self._opacity_var, 0, 100)
+        self._brush_field("Flow", self._flow_var, 0, 100)
+
+    def _brush_field(self, label: str, variable: tkinter.IntVar, low: int, high: int) -> None:
+        tkinter.Label(self.options, text=label, bg=RAIL).pack(side="left", padx=(8, 2), pady=4)
         spin = tkinter.Spinbox(
             self.options,
-            from_=0,
-            to=64,
+            from_=low,
+            to=high,
             width=4,
-            textvariable=self._radius_var,
+            textvariable=variable,
             command=self._apply_brush,
         )
         spin.pack(side="left", pady=4)
@@ -730,10 +739,22 @@ class Window:
         spin.bind("<FocusOut>", self._apply_brush)
 
     def _apply_brush(self, _event=None) -> None:
-        try:
-            self.stage.radius = max(0, int(self._radius_var.get()))
-        except (tkinter.TclError, ValueError):
+        if getattr(self, "_brush_applying", False):
             return
+        self._brush_applying = True
+        try:
+            self.stage.diameter = _boxed(self._diameter_var.get(), 1, 500)
+            self.stage.hardness = _boxed(self._hardness_var.get(), 0, 100)
+            self.stage.opacity = _boxed(self._opacity_var.get(), 0, 100)
+            self.stage.flow = _boxed(self._flow_var.get(), 0, 100)
+            self._diameter_var.set(self.stage.diameter)
+            self._hardness_var.set(self.stage.hardness)
+            self._opacity_var.set(self.stage.opacity)
+            self._flow_var.set(self.stage.flow)
+        except (tkinter.TclError, ValueError, AttributeError):
+            return
+        finally:
+            self._brush_applying = False
 
     def _type_options(self) -> None:
         style = self.stage.lettering.style
@@ -1138,6 +1159,10 @@ def _named(document: Document, name: str) -> Layer | Group:
 
 def _shifted(event) -> bool:
     return bool(getattr(event, "state", 0) & 0x1)
+
+
+def _boxed(value, low: int, high: int) -> int:
+    return max(low, min(high, int(value)))
 
 
 def main() -> None:

@@ -1,6 +1,8 @@
 """The picture on screen. Dragging moves one layer; the brush paints that layer."""
 
-from sinopia.brush import BLACK, line, stamp
+import math
+
+from sinopia.brush import BLACK, SPACING, dab, line, tip_offsets
 from sinopia.composite import _covered
 from sinopia.document import Document, Group, Layer, flatten, parent_offset
 from sinopia.image import Image
@@ -15,9 +17,17 @@ class Stage:
         self.target: Layer | Group = document.layers[-1]
         self.picture = flatten(document)
         self.color = BLACK
-        self.radius = 2
+        self.diameter = 5
+        self.hardness = 100
+        self.opacity = 100
+        self.flow = 100
         self._press: tuple[int, int, int, int] | None = None
         self._stroke: tuple[int, int] | None = None
+        self._walk: tuple[int, int] | None = None
+        self._along = 0.0
+        self._paint: tuple[bytes, bytearray] | None = None
+        self._tip_key: tuple[int, int] | None = None
+        self._tip_offsets: list[tuple[int, int, int]] = []
         self._transform: dict | None = None
         self._box: tuple[int, int, int, int] | None = None
         self.lettering = Lettering(self)
@@ -41,6 +51,8 @@ class Stage:
         self.target = node
         self._press = None
         self._stroke = None
+        self._walk = None
+        self._paint = None
         self._transform = None
         self._box = None
         self.picture = flatten(self.document)
@@ -71,10 +83,22 @@ class Stage:
         self.drag(x, y)
         self._press = None
 
+    @property
+    def radius(self) -> int:
+        """The old integer radius. Diameter 1 is radius 0, and it steps by two pixels."""
+        return (self.diameter - 1) // 2
+
+    @radius.setter
+    def radius(self, value: int) -> None:
+        self.diameter = max(0, int(value)) * 2 + 1
+
     def brush_press(self, x: int, y: int) -> None:
         if not isinstance(self.target, Layer):
             return
         self._stroke = None
+        self._walk = None
+        self._along = 0.0
+        self._paint = None
         self._brush_to(x, y)
 
     def brush_drag(self, x: int, y: int) -> None:
@@ -87,6 +111,8 @@ class Stage:
             return
         self._brush_to(x, y)
         self._stroke = None
+        self._walk = None
+        self._paint = None
 
     def _brush_to(self, x: int, y: int, restack: bool = True) -> None:
         if self._stroke is None:
@@ -96,12 +122,41 @@ class Stage:
         if not isinstance(self.target, Layer):
             return
         image = self.target.image
+        self._ensure_stroke(image)
+        offsets = self._tip()
+        step = max(1.0, self.diameter * SPACING / 100)
         for px, py in points:
-            local_x, local_y = self.layer_point(px, py)
-            stamp(image, local_x, local_y, self.color, self.radius)
+            if self._walk is None:
+                self._lay(image, px, py, offsets)
+                self._walk = (px, py)
+                self._along = 0.0
+                continue
+            self._along += math.hypot(px - self._walk[0], py - self._walk[1])
+            self._walk = (px, py)
+            while self._along >= step:
+                self._along -= step
+                self._lay(image, px, py, offsets)
         self._stroke = (x, y)
         if restack:
             self._restack()
+
+    def _ensure_stroke(self, image: Image) -> None:
+        if self._paint is None:
+            self._paint = (bytes(image.pixels), bytearray(image.width * image.height))
+
+    def _tip(self) -> list[tuple[int, int, int]]:
+        key = (self.diameter, self.hardness)
+        if self._tip_key != key:
+            self._tip_key = key
+            self._tip_offsets = tip_offsets(self.diameter, self.hardness)
+        return self._tip_offsets
+
+    def _lay(self, image: Image, x: int, y: int, offsets: list[tuple[int, int, int]]) -> None:
+        if self._paint is None:
+            return
+        local_x, local_y = self.layer_point(x, y)
+        origin, coverage = self._paint
+        dab(image, local_x, local_y, self.color, offsets, self.flow, self.opacity, origin, coverage)
 
     def content_box(self) -> tuple[int, int, int, int] | None:
         """Exclusive document box around the layer's opaque pixels. None for a group or an empty layer."""

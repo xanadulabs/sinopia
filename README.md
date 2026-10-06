@@ -6,7 +6,7 @@ The picture you keep is a folder of PNGs plus `stack.txt`. PSD, PNG, and JPEG ar
 
 Sinopia is by Will Hinds. Copyright 2026 Will Hinds, under the Apache License, Version 2.0. The mark is a plaster fragment with a mother and child drawn in sinopia. That picture is the window icon, and `sinopia.png` is the same file for a desktop shortcut.
 
-What it does now: layers and groups, masks, a drop shadow, brush, type, transform, marquee, zoom, undo, canvas size, and PNG or JPEG open and save. The window shows the same pixels the compositor writes. Still ahead: the healing brush, PSD export, and smart objects.
+What it does now: layers and groups, masks, a drop shadow, a brush with diameter, hardness, opacity, and flow, type, transform, marquee, zoom, undo, canvas size, and PNG or JPEG open and save. The window shows the same pixels the compositor writes. Still ahead: the healing brush, PSD export, and smart objects.
 
 ## Milestones
 
@@ -64,13 +64,13 @@ The tools sit in a column on the left. Each button keeps its shortcut letter in 
 | `m` | Marquee | Drag a rectangle. Shift keeps it square. |
 | `v` | Move | Drag the selected layer. |
 | `z` | Zoom | Click to zoom in. Alt-click to zoom out. |
-| `b` | Brush | Drag to paint the selected layer. The mask is left alone. `[` and `]` change the size. |
+| `b` | Brush | Drag to paint the selected layer. The mask is left alone. `[` and `]` change the diameter. |
 | `t` | Type | Click, type, Enter keeps the letters, Escape drops them. |
 | `f` | Transform | Drag a corner, an edge, or the inside of the box. |
 
 Click the picture and the top layer that covers that spot becomes the selection, even when a higher layer is transparent there. That row stays highlighted.
 
-With the brush selected, the top bar sets the size, from 0 to 64. With type selected, it sets the font, the size in px or pt, bold, italic, strike, underline, kerning, and stroke. The built-in face is Sinopia. Other names are fontconfig families drawn by Pango. Enter bakes the letters into the layer PNG, so the picture does not need that font later.
+With the brush selected, the top bar sets the diameter (1 to 500), the hardness, the opacity, and the flow. Hardness is the feather of the edge: 100 is solid, 0 fades from the middle to the rim. Flow is how much ink each dab lays down, and opacity is the cap for that stroke, so scrubbing builds up and then stops. The dabs sit a quarter of the diameter apart. Those settings are the tool, not the picture: the folder keeps the pixels. With type selected, it sets the font, the size in px or pt, bold, italic, strike, underline, kerning, and stroke. The built-in face is Sinopia. Other names are fontconfig families drawn by Pango. Enter bakes the letters into the layer PNG, so the picture does not need that font later.
 
 Transform draws a box around the layer. Drag a corner and the opposite corner stays put. Drag an edge to scale one side. Drag inside the box to move the layer. Shift on a corner keeps the proportions.
 
