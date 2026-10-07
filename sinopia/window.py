@@ -34,6 +34,7 @@ from sinopia.image import Image
 from sinopia.picker import choose_canvas, choose_picture, choose_size
 from sinopia.select import copied_image, copy_pixels, crop, marquee_box
 from sinopia.proof import proof_document
+from sinopia.psd import read_psd, write_psd
 from sinopia.stage import Stage, ppm_bytes
 from sinopia.typeface import font_families
 
@@ -490,16 +491,31 @@ class Window:
             return "break"
         self._open_dir = path.parent
         try:
-            image = read_picture(path)
+            if path.suffix.lower() in (".psd", ".psb"):
+                opened, notes = read_psd(path)
+                picture = None
+            else:
+                opened = notes = None
+                picture = read_picture(path)
         except (OSError, ValueError, RuntimeError) as error:
             messagebox.showerror("Open", str(error), parent=self.root)
             return "break"
+        if self.stage._session is not None:
+            self.stage.transform_cancel()
         document = self.stage.document
-        document.width = image.width
-        document.height = image.height
-        document.layers = [Layer(layer_name(path), image)]
+        if opened is not None:
+            document.width = opened.width
+            document.height = opened.height
+            document.layers = opened.layers
+        else:
+            document.width = picture.width
+            document.height = picture.height
+            document.layers = [Layer(layer_name(path), picture)]
+        self.marquee = None
         self.history.commit("Open")
         self._restore_view()
+        if notes:
+            messagebox.showinfo("Open", "\n".join(notes), parent=self.root)
         return "break"
 
     def _save_as(self, _event=None):
@@ -507,14 +523,19 @@ class Window:
             parent=self.root,
             title="Save As",
             defaultextension=".png",
-            filetypes=[("PNG", "*.png"), ("JPEG", "*.jpg *.jpeg")],
+            filetypes=[("PNG", "*.png"), ("JPEG", "*.jpg *.jpeg"), ("PSD", "*.psd")],
         )
         if not path:
             return "break"
-        if Path(path).suffix.lower() not in (".png", ".jpg", ".jpeg"):
+        suffix = Path(path).suffix.lower()
+        if suffix not in (".png", ".jpg", ".jpeg", ".psd"):
             path += ".png"
+            suffix = ".png"
         try:
-            write_picture(path, self.stage.picture)
+            if suffix == ".psd":
+                write_psd(path, self.stage.document)
+            else:
+                write_picture(path, self.stage.picture)
         except (OSError, ValueError, RuntimeError) as error:
             messagebox.showerror("Save As", str(error), parent=self.root)
         return "break"

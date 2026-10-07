@@ -13,7 +13,7 @@ from sinopia.pixbuf import PixbufMissing, image_size, preview_image
 RAIL = "#d6d6d6"
 PANE = "#b4b4b4"
 PREVIEW = 280
-KINDS = {".png", ".jpg", ".jpeg"}
+KINDS = {".png", ".jpg", ".jpeg", ".psd", ".psb"}
 
 
 def choose_picture(parent: tkinter.Misc, start: Path) -> Path | None:
@@ -149,6 +149,19 @@ class PictureDialog:
         self._shown = path
         self._token += 1
         token = self._token
+        if path.suffix.lower() in (".psd", ".psb"):
+            try:
+                from sinopia.psd import measure
+
+                width, height = measure(path)
+            except (OSError, ValueError) as error:
+                self._fail(str(error))
+                return
+            self.size_label.configure(text=f"{width} × {height}")
+            if self._after is not None:
+                self.top.after_cancel(self._after)
+            self._after = self.top.after_idle(lambda: self._load_preview(path, token))
+            return
         try:
             width, height = image_size(path)
         except PixbufMissing:
@@ -165,6 +178,20 @@ class PictureDialog:
     def _load_preview(self, path: Path, token: int) -> None:
         self._after = None
         if token != self._token:
+            return
+        if path.suffix.lower() in (".psd", ".psb"):
+            try:
+                from sinopia.document import flatten
+                from sinopia.psd import read_psd
+
+                image = thumbnail(flatten(read_psd(path)[0]))
+            except (OSError, ValueError, RuntimeError) as error:
+                self._fail(str(error))
+                return
+            if token != self._token:
+                return
+            self._photo = _photo(self.top, image)
+            self.preview.configure(image=self._photo, text="")
             return
         try:
             image = preview_image(path, PREVIEW)

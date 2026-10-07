@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 
 from sinopia.image import Image
-from sinopia.picker import thumbnail
+from sinopia.picker import _entries, thumbnail
 from sinopia.png import write_png
 
 
@@ -17,6 +17,15 @@ class ThumbnailTest(unittest.TestCase):
         self.assertLess(small.width, image.width)
         self.assertLessEqual(max(small.width, small.height), 100)
         self.assertEqual(small.get(0, 0), (180, 24, 24, 255))
+
+    def test_a_psd_is_listed_with_the_pictures(self):
+        with tempfile.TemporaryDirectory() as raw:
+            folder = Path(raw)
+            (folder / "scan.psd").write_bytes(b"8BPS")
+            (folder / "big.psb").write_bytes(b"8BPS")
+            (folder / "notes.txt").write_text("no")
+            names = [path.name for _kind, path in _entries(folder)]
+        self.assertEqual(names, ["big.psb", "scan.psd"])
 
 
 @unittest.skipUnless(os.environ.get("DISPLAY"), "no display")
