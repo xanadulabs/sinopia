@@ -1,4 +1,7 @@
-"""Write an Image as an 8-bit RGBA PNG. No dependencies beyond the stdlib."""
+"""Write an Image as an 8-bit RGBA PNG. No dependencies beyond the stdlib.
+
+The file is the header and the pixels. Text, time, and EXIF chunks are never written.
+"""
 
 import struct
 import zlib

@@ -8,7 +8,7 @@ The picture you keep is a folder of PNGs plus `stack.txt`. PNG and JPEG are copi
 
 Sinopia is by Will Hinds. Copyright 2026 Will Hinds, under the Apache License, Version 2.0. The mark is two rounded tiles, plaster behind sinopia. `sinopia.png` is that drawing, for a desktop shortcut.
 
-What it does now: layers and groups, masks, a drop shadow, a brush with diameter, hardness, opacity, flow, color, and erase, type, transform with rotate, marquee, zoom, undo, canvas size, PNG or JPEG open and save, and PSD or PSB open, and PSD save. The window shows the same pixels the compositor writes. Still ahead: the healing brush and smart objects.
+What it does now: layers and groups, masks, a drop shadow, a brush with diameter, hardness, opacity, flow, color, and erase, type, transform with rotate, marquee, zoom, undo, canvas size, PNG or JPEG open and save, and PSD or PSB open, and PSD save. A copy keeps the pixels and leaves out EXIF and the other notes a camera file carries. The window shows the same pixels the compositor writes. Still ahead: the healing brush and smart objects.
 
 Start it with `python3 -m sinopia`. The window opens on the sample picture, kept in `out/document/`. Run it again and that folder opens.
 
@@ -20,7 +20,7 @@ Start it with `python3 -m sinopia`. The window opens on the sample picture, kept
 4. **Brush.** Done. Press `b` and drag to paint the top layer. The top bar sets diameter, hardness, opacity, flow, and color. `e` erases. Press `v` to drag that layer again. The mask is not painted.
 5. **Type and layer styles.** Type is on the canvas: press `t`, click, type, and press Enter to keep the letters. The top bar sets the font, the size in px or pt, bold, italic, strike, underline, kerning, and stroke. The built-in face is Sinopia. Other names are fontconfig families drawn by Pango; Enter bakes the pixels into the layer PNG, which stays the file you keep. The first layer style is a drop shadow, stored on the layer as `shadow dx dy`.
 6. **Healing brush.**
-7. **PSD, PNG, and JPEG.** PNG and JPEG open and save from the File menu. A simple 8-bit RGB PSD or PSB opens into layers. Save As can write a PSD of those layers. The folder stays the file we keep.
+7. **PSD, PNG, and JPEG.** PNG and JPEG open and save from the File menu. A simple 8-bit RGB PSD or PSB opens into layers. Save As can write a PSD of those layers. The folder stays the file we keep. Copies leave out EXIF.
 8. **Smart objects.** A nested folder plus a transform.
 
 ## File
@@ -29,7 +29,7 @@ File → New asks for a width and height. If the clipboard holds a picture, incl
 
 File → Open lists the pictures in a folder and shows a small preview of the one you select, with its real pixel size, before it opens. PNG, JPEG, PSD, and PSB open. A PSD or PSB is read once. An 8-bit RGB file can bring its layers, masks, groups, and opacity, up to 8192 pixels on a side. Open says what it left out. The picture is still saved as the folder.
 
-Save writes the folder of PNGs plus `stack.txt`. That folder is the file you keep. Save As writes a PNG, JPEG, or PSD copy. A PSD keeps the layers, masks, groups, and opacity. Letting go of a drag or a stroke saves the folder too. Exit closes the window.
+Save writes the folder of PNGs plus `stack.txt`. That folder is the file you keep. Save As writes a PNG, JPEG, or PSD copy. The copy is the pixels only: camera data, a location, and other notes from a file you opened are left out, and nothing is written in their place. A PSD keeps the layers, masks, groups, and opacity. Letting go of a drag or a stroke saves the folder too. Exit closes the window.
 
 ## Edit
 

@@ -132,7 +132,10 @@ def read_psd(path: Path | str) -> tuple[Document, list[str]]:
 
 
 def write_psd(path: Path | str, document: Document) -> None:
-    """Write a PSD. The folder of PNGs plus stack.txt stays the file you keep."""
+    """Write a PSD. The folder of PNGs plus stack.txt stays the file you keep.
+
+    The only image resource is the print resolution. EXIF and similar notes are not written.
+    """
     Path(path).write_bytes(psd_bytes(document))
 
 

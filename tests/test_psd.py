@@ -304,6 +304,18 @@ class PsdTest(unittest.TestCase):
         self.assertEqual(opened.layers[1].opacity, 200)
         self.assertEqual(flatten(opened).pixels, flatten(document).pixels)
 
+    def test_a_saved_psd_leaves_out_exif(self):
+        secret = b"SINOPIA-SECRET-PLACE"
+        document = Document(2, 2, [Layer("red", Image(2, 2, RED))])
+        noted = _with_exif_resource(psd_bytes(document), secret)
+        self.assertIn(secret, noted)
+        opened, _notes = open_psd(noted)
+        saved = psd_bytes(opened)
+        self.assertNotIn(secret, saved)
+        self.assertNotIn(b"GPSLatitude", saved)
+        self.assertEqual(_resource_ids(saved), [0x03ED])
+        self.assertEqual(opened.layers[0].image.get(0, 0), RED)
+
     def test_a_drop_shadow_survives_in_the_saved_psd(self):
         dot = Image(2, 1)
         dot.set(0, 0, GREEN)
@@ -319,3 +331,35 @@ class PsdTest(unittest.TestCase):
         document, notes = open_psd(data)
         self.assertEqual(document.layers[0].image.get(0, 0), RED)
         self.assertIn("clip", notes[0])
+
+
+def _with_exif_resource(data: bytes, secret: bytes) -> bytes:
+    color_len = int.from_bytes(data[26:30], "big")
+    res_at = 30 + color_len
+    res_len = int.from_bytes(data[res_at : res_at + 4], "big")
+    payload = b"Exif\x00\x00GPSLatitude" + secret
+    raw_len = len(payload)
+    if raw_len % 2:
+        payload += b"\x00"
+    block = b"8BIM" + _u16(0x0422) + b"\x00\x00" + _u32(raw_len) + payload
+    start = res_at + 4
+    resources = data[start : start + res_len] + block
+    return data[:res_at] + _u32(len(resources)) + resources + data[start + res_len :]
+
+
+def _resource_ids(data: bytes) -> list[int]:
+    color_len = int.from_bytes(data[26:30], "big")
+    res_at = 30 + color_len
+    res_len = int.from_bytes(data[res_at : res_at + 4], "big")
+    blob = data[res_at + 4 : res_at + 4 + res_len]
+    ids = []
+    at = 0
+    while at + 12 <= len(blob) and blob[at : at + 4] == b"8BIM":
+        ids.append(int.from_bytes(blob[at + 4 : at + 6], "big"))
+        name_field = 1 + blob[at + 6]
+        if name_field % 2:
+            name_field += 1
+        size_at = at + 6 + name_field
+        size = int.from_bytes(blob[size_at : size_at + 4], "big")
+        at = size_at + 4 + size + (size % 2)
+    return ids
